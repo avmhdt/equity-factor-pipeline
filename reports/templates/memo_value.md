@@ -24,6 +24,8 @@ As a family, an equal-weight neutralized book has a gross Sharpe of {{family.val
 
 Our value factor is not HML. Its correlation with HML falls from {{gap.hml_ff_convention.correlation}} under Fama-French's rules to {{gap.decile_spread.correlation}} on our decile construction and {{gap.neutralized.correlation}} once neutralized. Neutralization is the largest single step.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is {{spread.table.family.value.net_sharpe}} with no cap and {{spread.table.family.value.capped_sharpe}} with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_value.png)
 
 ![IC by horizon](../figures/decay_value.png)

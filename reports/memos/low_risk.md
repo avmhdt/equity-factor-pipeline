@@ -23,6 +23,8 @@ As a family, an equal-weight neutralized book has a gross Sharpe of 0.48 and alp
 
 The short side matters too. High-volatility small caps are the stocks hardest to borrow, and the flat 5.0% assumed for names outside the top 1,000 is likely too low for many of them. The true cost of this book is probably higher than shown.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.89 with no cap and -0.81 with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_low_risk.png)
 
 ![IC by horizon](../figures/decay_low_risk.png)

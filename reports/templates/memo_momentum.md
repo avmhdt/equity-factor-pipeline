@@ -26,6 +26,8 @@ Industry momentum has no neutralized figure, on purpose. It is one number per in
 
 As a family, an equal-weight neutralized book has a gross Sharpe of {{family.momentum.gross_sharpe}} and alpha of {{family.momentum.gross_alpha}} (t {{family.momentum.gross_alpha_t}}). It replaces {{family.momentum.turnover}} of its book each month, so it pays {{family.momentum.total_cost}} a year in costs at {{spec.aum}} and its net Sharpe is {{family.momentum.net_sharpe}}, or {{family.momentum.capped_sharpe}} with the trade cap.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is {{spread.table.family.momentum.net_sharpe}} with no cap and {{spread.table.family.momentum.capped_sharpe}} with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_momentum.png)
 
 ![IC by horizon](../figures/decay_momentum.png)

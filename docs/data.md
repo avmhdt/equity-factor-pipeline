@@ -12,6 +12,13 @@ Raw data stays under `data/`, which is git-ignored. Every download is an immutab
 | Open Source Asset Pricing | `SignalDoc`, long-short returns, release 2026.10 | Replication targets | Public |
 | EDGAR XBRL and Stooq | Company facts, daily prices | The free path only; watermarked, never in headline results | Public |
 
+## Published spreads
+
+The size table in `efp/backtest/spread_table.py` and the benchmark checks use two published sources, not a download:
+
+- SEC staff, *A characterization of market quality for small capitalization US equities*, 2013 MIDAS data, Tables 1 and 4.
+- Hagstromer, *Overestimated effective spreads: Implications for investors*, midpoint effective spread for S&P 500 stocks, November 30 to December 4, 2015. The published form is *Bias in the effective bid-ask spread*, Journal of Financial Economics, 2021.
+
 ## Pulling and building
 
 ```bash

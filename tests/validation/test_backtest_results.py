@@ -60,3 +60,44 @@ def test_cost_sensitivity_has_both_sides_of_d06() -> None:
 def test_composites_are_in_the_multiple_testing_table() -> None:
     table = _read("multiple_testing")
     assert table.filter(pl.col("strategy_family").eq("composite")).height > 0
+
+
+def test_corwin_schultz_stays_the_headline_and_matches_the_summary() -> None:
+    models = _read("spread_models").filter(
+        pl.col("composite").eq(HEADLINE),
+        pl.col("spread_model").eq("corwin_schultz"),
+        pl.col("period").eq("full"),
+    )
+    summary = _read("backtest_summary").filter(
+        pl.col("composite").eq(HEADLINE), pl.col("execution").eq("next_vwap_proxy")
+    )
+    for column in ("net_mean_annual", "net_sharpe", "capped_net_mean_annual", "capped_net_sharpe"):
+        assert models[column].item() == pytest.approx(summary[column].item(), abs=1e-6)
+
+
+def test_every_spread_model_has_every_book_and_period() -> None:
+    table = _read("spread_models")
+    assert set(table["spread_model"]) == {"corwin_schultz", "abdi_ranaldo", "size_bucket"}
+    sizes = table.group_by("composite", "spread_model").len()
+    assert set(sizes["len"]) == {2}
+
+
+def test_capacity_covers_each_model_and_multiplier() -> None:
+    table = _read("spread_model_capacity").filter(pl.col("composite").eq(HEADLINE))
+    assert table.height == 9
+
+
+def test_large_cap_checks_are_in_the_table() -> None:
+    table = _read("spread_model_checks").filter(pl.col("band").str.starts_with("top"))
+    assert table.height == 3
+    assert table["stock_months"].min() >= 900  # type: ignore[operator]
+
+
+def test_later_spread_runs_are_counted_and_marked() -> None:
+    path = TABLES.parent / "trial_log.csv"
+    if not path.is_file():
+        pytest.skip("no trial log")
+    log = pl.read_csv(path, schema_overrides={"x_note": pl.String, "sharpe_annual": pl.Float64})
+    late = log.filter(pl.col("x_note").fill_null("").str.contains("spread model"))
+    assert late.height >= 32
+    assert late["params_json"].str.contains('"spread_model"').all()

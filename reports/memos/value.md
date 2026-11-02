@@ -24,6 +24,8 @@ As a family, an equal-weight neutralized book has a gross Sharpe of 0.61 and FF5
 
 Our value factor is not HML. Its correlation with HML falls from 0.99 under Fama-French's rules to 0.65 on our decile construction and 0.29 once neutralized. Neutralization is the largest single step.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.17 with no cap and -0.34 with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_value.png)
 
 ![IC by horizon](../figures/decay_value.png)

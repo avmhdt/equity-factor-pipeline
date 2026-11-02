@@ -10,6 +10,16 @@ import polars as pl
 from efp.signals.registry import registered, spec_of
 
 FAMILIES = ("value", "momentum", "quality", "investment", "low_risk")
+SPREAD_KEYS = {"corwin_schultz": "cs", "abdi_ranaldo": "ar", "size_bucket": "table"}
+CHECK_KEYS = {
+    "<$100M": "micro",
+    "$100-250M": "small",
+    "$250-500M": "lower",
+    "$500M-1B": "middle",
+    "$1-2B": "upper",
+    "$2-5B": "large",
+    "top 500, late 2015": "top",
+}
 FIXED = {
     "spec.hurdle": "3.0",
     "spec.weak_hurdle": "2",
@@ -52,9 +62,13 @@ FIXED = {
     "spec.delist_nasdaq": "55%",
     "spec.min_price": "$1",
     "spec.min_overlap": "240",
-    "spec.spread_top_low": "16",
-    "spec.spread_top_high": "25",
     "spec.position_adv": "3.7",
+    "spec.large_cap_bps": "1.47",
+    "spec.table_year": "2013",
+    "spec.large_cap_year": "2015",
+    "spec.recent_start": "2010",
+    "spec.books": "8",
+    "spec.models": "3",
     "spec.capped_exposure": "0.38",
 }
 """Settings the documents state: spec thresholds, D-03 to D-06 and measured diagnostics."""
@@ -203,6 +217,49 @@ def _portfolio(tables: Path, headline: str, execution: str) -> dict[str, str]:
     return found
 
 
+def _capacity_text(row: dict[str, object]) -> str:
+    if row["status"] == "estimated":
+        return f"about {_usd(float(row['capacity_usd']))}"  # type: ignore[arg-type]
+    return "below the grid" if row["status"] == "below grid min" else str(row["status"])
+
+
+def _spread_models(tables: Path, headline: str) -> dict[str, str]:
+    found: dict[str, str] = {}
+    books = _named_books(headline)
+    table = _read(tables, "spread_models")
+    if table is not None:
+        for row in table.iter_rows(named=True):
+            if row["composite"] not in books:
+                continue
+            base = f"spread.{SPREAD_KEYS[row['spread_model']]}.{books[row['composite']]}"
+            if row["period"] != "full":
+                base += ".recent"
+            found[f"{base}.net_sharpe"] = _num(row["net_sharpe"])
+            found[f"{base}.capped_sharpe"] = _num(row["capped_net_sharpe"])
+            found[f"{base}.net_mean"] = _pct(row["net_mean_annual"])
+            found[f"{base}.capped_mean"] = _pct(row["capped_net_mean_annual"])
+            found[f"{base}.net_alpha"] = _pct(row["net_alpha_annual"])
+            found[f"{base}.net_alpha_t"] = _num(row["net_alpha_t"], 1)
+            found[f"{base}.capped_alpha"] = _pct(row["capped_alpha_annual"])
+            found[f"{base}.capped_alpha_t"] = _num(row["capped_alpha_t"], 1)
+            found[f"{base}.spread"] = _pct(row["spread_cost_annual"])
+            found[f"{base}.impact"] = _pct(row["impact_cost_annual"])
+    capacity = _read(tables, "spread_model_capacity")
+    if capacity is not None:
+        for row in capacity.iter_rows(named=True):
+            if row["composite"] in books:
+                base = f"spread.{SPREAD_KEYS[row['spread_model']]}.{books[row['composite']]}"
+                found[f"{base}.capacity_{row['impact_multiplier']:g}"] = _capacity_text(row)
+    checks = _read(tables, "spread_model_checks")
+    if checks is not None:
+        for row in checks.iter_rows(named=True):
+            base = f"check.{SPREAD_KEYS[row['model']]}.{CHECK_KEYS[row['band']]}"
+            found[f"{base}.bps"] = _num(row["estimate_bps"], 1)
+            found[f"{base}.ratio"] = _num(row["ratio"], 1)
+            found[f"check.published.{CHECK_KEYS[row['band']]}"] = _num(row["benchmark_bps"], 1)
+    return found
+
+
 def _validation(tables: Path) -> dict[str, str]:
     found: dict[str, str] = {}
     french = _read(tables, "french_replication")
@@ -262,6 +319,8 @@ def _trials(tables: Path, log_path: Path) -> dict[str, str]:
         for family, rows in counts.iter_rows():
             found[f"trials.{family}"] = str(rows)
         found["trials.dirty"] = str(log.filter(pl.col("git_sha").str.ends_with("-dirty")).height)
+        late = log.filter(pl.col("x_note").fill_null("").str.contains("spread model"))
+        found["trials.late_spread"] = str(late.height)
     table = _read(tables, "multiple_testing")
     if table is not None:
         positive = table.filter(pl.col("t_nw") > 0)
@@ -285,6 +344,7 @@ def build_numbers(tables: Path, log_path: Path, headline: str, execution: str) -
     found |= _signals(tables)
     found |= _family_counts(tables)
     found |= _portfolio(tables, headline, execution)
+    found |= _spread_models(tables, headline)
     found |= _validation(tables)
     found |= _trials(tables, log_path)
     for name in registered():

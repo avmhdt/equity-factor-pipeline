@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Bottom line:** a composite of 26 published signals earns a real gross return, with FF5 + UMD alpha of 14.3% a year (t 7.7). As a monthly equal-weight decile book it doesn't survive its costs: at $100M the net Sharpe is -1.60 with no trade cap and -0.68 with one. No fund size on the grid meets the capacity test. The result leans heavily on one cost assumption, set out below.
+**Bottom line:** a composite of 26 published signals earns a real gross return, with FF5 + UMD alpha of 14.3% a year (t 7.7). As a monthly equal-weight decile book it doesn't survive its costs: at $100M the net Sharpe is -1.60 with no trade cap and -0.68 with one, on the Corwin-Schultz spreads D-06 set for the headline. Those spreads turned out to be far too high, so after that failure the book was rerun on other spread models. Better spreads don't rescue it: on published spreads the net Sharpe is -1.18 and -0.19, because market impact is the larger cost. The best case found, the top 1,000 on published spreads, is about zero.
 
 This README is rendered by `efp report`. Every number comes from [results/readme_numbers.json](results/readme_numbers.json), and a test fails the build if one doesn't. Family memos are in [reports/memos](reports/memos).
 
@@ -27,7 +27,7 @@ Raw data stays in a git-ignored folder. Only aggregate tables and figures are pu
 - **Evaluation:** rank IC, decile spreads, Fama-MacBeth, turnover and decay, with Newey-West errors.
 - **Combination:** equal weight; IC-weighted on a trailing 36 months; ridge on an expanding window of at least 120 months. All walk-forward, with a 1-month purge.
 - **Headline book:** equal weight of neutralized scores, chosen before the first backtest ran. Dollar neutral, gross leverage 2.0, rebalanced monthly into equal-weight deciles.
-- **Costs:** Corwin-Schultz half-spread with a 2 bp floor, square-root impact with coefficient 1.0 on 20-day ADV, and borrow of 0.25% for the top 500, 1.0% to rank 1,000 and 5.0% beyond. These are modelling assumptions, not measurements.
+- **Costs:** Corwin-Schultz half-spread with a 2 bp floor, square-root impact with coefficient 1.0 on 20-day ADV, and borrow of 0.25% for the top 500, 1.0% to rank 1,000 and 5.0% beyond. These are modelling assumptions, not measurements. Two other spread models were run later; see [below](#other-spread-models-run-after-the-failure).
 
 Details are in [docs/methods.md](docs/methods.md) and [docs/signals.md](docs/signals.md).
 
@@ -59,7 +59,7 @@ On OSAP's series, pooled returns fall 30% out of sample (t -1.0) and 39% after p
 
 ### Significance
 
-All 485 logged trials are judged against t > 3.0 (Harvey, Liu and Zhu, 2016) and BHY-adjusted p-values. 35 trials clear t = 3.0 with a positive sign, and 35 survive BHY at 5%. Many of those are the same composites gross. The hurdle is two-sided, so the net rows that also clear it do so because they lose money significantly.
+All 517 logged trials are judged against t > 3.0 (Harvey, Liu and Zhu, 2016) and BHY-adjusted p-values. 35 trials clear t = 3.0 with a positive sign, and 35 survive BHY at 5%. Many of those are the same composites gross. The hurdle is two-sided, so the net rows that also clear it do so because they lose money significantly.
 
 Neutralizing to sector, size and beta usually shrinks an IC without killing it:
 
@@ -97,27 +97,69 @@ D-06's sensitivity scales every cost together:
 | x1 | -1.60 | -0.68 |
 | x2 | -2.78 | -2.16 |
 
-Capacity is the fund size where net alpha is 50% of zero-cost alpha, here 7.1%. **No fund size from $10M to $10B reaches it:** at $10M net alpha is already -7.5%, because spread and borrow don't shrink with size. Past about $100M net alpha rises again only because the ADV cap freezes the book; that isn't capacity.
+Capacity is the fund size where net alpha is 50% of zero-cost alpha, here 7.1%. **Under Corwin-Schultz, no fund size from $10M to $10B reaches it:** at $10M net alpha is already -7.5%, because spread and borrow don't shrink with size. Past about $100M net alpha rises again only because the ADV cap freezes the book; that isn't capacity.
 
 The top 1,000, added afterwards as a labelled sensitivity, gives alpha of 8.5% (t 4.0), net Sharpe -0.63, and the same capacity outcome.
 
 ![Capacity](reports/figures/capacity_curve.png)
 
+### Other spread models, run after the failure
+
+These runs came after the Corwin-Schultz result failed, at the owner's request, so treat them as a follow-up and not as a test. Corwin-Schultz stays the headline, and every run is in the trial log. The reading rule was set before they ran: a model's net result counts only as far as its estimates match published spreads for the same stocks.
+
+**Abdi-Ranaldo** uses daily close, high and low prices. **The size table** isn't an estimator: it's published effective spreads by market cap, from an SEC staff study of 2013 up to $5B and Hagströmer's S&P 500 sample of 2015 above that. The spec names the option but gives no values, so these were sourced before any result used them.
+
+Mean half-spread in bps against those published figures:
+
+| Stocks | Published | Corwin-Schultz | Abdi-Ranaldo |
+|---|---|---|---|
+| Top 500, late 2015 | 1.47 | 27.2 | 30.9 |
+| $2-5B, 2013 | 3.5 | 27.8 | 30.1 |
+| $500M-1B, 2013 | 8.7 | 37.4 | 39.8 |
+| $100-250M, 2013 | 29.1 | 47.9 | 53.0 |
+| Under $100M, 2013 | 81.5 | 43.5 | 63.8 |
+
+Both daily-range estimators read far too high outside the smallest stocks: 18.5x and 21.0x on large caps. Abdi-Ranaldo is no improvement here, so under the rule neither net result says much about true costs. The size table matches because it is those figures, so that isn't independent evidence. Its figures describe the 2010s and it applies them to every year, which understates earlier spreads, so results are also cut from 2010.
+
+Net Sharpe at $100M, next-day VWAP proxy, with capacity at impact x1:
+
+| Book and spreads | No cap | ADV cap | ADV cap, 2010 on | Capacity |
+|---|---|---|---|---|
+| Top 3,000, Corwin-Schultz | -1.60 | -0.68 | -0.77 | below the grid |
+| Top 3,000, Abdi-Ranaldo | -1.68 | -0.77 | -0.86 | below the grid |
+| Top 3,000, size table | -1.18 | -0.19 | -0.27 | below the grid |
+| Top 1,000, Corwin-Schultz | -0.63 | -0.50 | -0.60 | below the grid |
+| Top 1,000, Abdi-Ranaldo | -0.77 | -0.64 | -0.72 | below the grid |
+| Top 1,000, size table | -0.05 | 0.07 | -0.10 | about $20M |
+
+![Spread models](reports/figures/spread_models.png)
+
+What this supports:
+
+- **Corwin-Schultz overstated spreads, and that mattered.** Published spreads cut the headline book's spread cost from 11.1% to 2.5% a year.
+- **It isn't why the book fails.** Impact is 32.0% a year either way. With the published table the top 3,000 still nets -22.5% uncapped and -2.7% capped.
+- **The best case is about zero, not positive.** The top 1,000 on the size table nets -0.5% uncapped and 0.8% capped, with capped alpha of 1.1% (t 0.6). It's negative from 2010 on, at -1.1%, and it's the best of 3 models across 8 books, picked after the fact.
+- **Capacity exists only in that cell, and it's small:** about $20M at impact x1, about $89M at x0.5 and below the grid at x2.
+- **Impact is now the assumption to question.** It's the largest cost in the headline book under every model, and unlike spreads it hasn't been checked against published data. These runs don't test it.
+
 ### How many tries
 
-The headline rests on 485 logged trials: 86 replication, 177 composite, 40 value, 66 momentum, 44 quality, 32 investment, 32 low risk and 8 size. 26 were run from a dirty tree and are kept. `efp explog export` hands the log to the sibling backtest-overfitting-lab repo.
+The headline rests on 517 logged trials: 86 replication, 209 composite, 40 value, 66 momentum, 44 quality, 32 investment, 32 low risk and 8 size. 26 were run from a dirty tree and are kept. 32 of the composite rows are the later spread-model runs, marked in `x_note`. `efp explog export` hands the log to the sibling backtest-overfitting-lab repo.
 
 ## What failed
 
 - **The headline hypothesis.** The composite doesn't pay for itself as specified, at any size tested.
 - **4 replications** fall short: `sue` r 0.69, `noa` r 0.46, `accruals` r 0.39, `fscore` r 0.22. Each is listed with its likely cause in the table. Tuning stopped there.
-- **Capacity has no dollar answer,** because the book fails the test at the bottom of the grid.
+- **Capacity has almost no dollar answer.** The book fails the test at the bottom of the grid in all but one cell, and that cell is the size table on the top 1,000, at about $20M.
 - **Our own decay test** is too short to say anything.
+- **Abdi-Ranaldo** didn't improve on Corwin-Schultz against published spreads for these stocks.
 - **Neutralized `ind_mom`** was noise for two milestones before a table moved and gave it away. It's one number per industry, so sector dummies span it. It's now left out, and the old trial rows stay in the log.
 
 ## Limitations
 
-- **Corwin-Schultz is the weak link.** It reads 16 to 25 bps half-spread on the top 500 names, where real spreads are nearer 1 bp. Halving all costs brings the capped book to a Sharpe of 0.11. The result is robust in direction at these costs, not a proof that no version of this book can work.
+- **The spread estimates are poor.** Corwin-Schultz reads 27.2 bps on large caps against a published 1.47, and Abdi-Ranaldo is no closer. The headline keeps Corwin-Schultz because D-06 set it, so its net figures overstate spread cost.
+- **The size table is a snapshot.** It holds 2013 and 2015 figures in fixed dollar bands, which understates spreads in earlier years and ignores price.
+- **Impact is unverified.** It's the largest cost in the headline book, and none of this tests the coefficient of 1.0. A better execution model could change the net result, and that hasn't been measured.
 - **The book is deliberately naive.** Monthly rebalancing to equal weight has no turnover control. A desk would trade less.
 - **Uncapped and capped are both flawed.** Uncapped positions reach 3.7x ADV. Capped books miss trades and drift, with net exposure up to 0.38 of NAV.
 - **Restatements and items.** Sharadar's `AR*` dimensions are as-reported, but it lacks gross PP&E, taxes payable, deferred taxes and preferred stock. Book equity is plain `equity`.
@@ -152,6 +194,8 @@ uv run efp rebuild --config configs/headline.yaml
 **Why does your value factor differ from Fama-French's?** Construction. Correlation with HML is 0.99 under Fama-French's rules, 0.82 once re-formed monthly, 0.65 on deciles and 0.29 neutralized. See `results/tables/value_gap_decomposition.csv`.
 
 **What happens to Sharpe at next-day VWAP instead of the close?** Very little gross: 1.10 to 1.07. Net of costs it goes from -1.56 to -1.60.
+
+**Would a better spread model have saved it?** No. It shrinks the loss, but the headline book stays negative on published spreads, at -1.18 uncapped and -0.19 capped. Impact is the larger problem.
 
 **What do you do with an anomaly that fails?** Report it with a reason. Tuning a definition to raise a correlation is logged with its effect in [docs/decisions.md](docs/decisions.md).
 

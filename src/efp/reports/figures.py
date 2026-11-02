@@ -21,6 +21,7 @@ SERIES = "#2c6fbb"
 SECOND = "#b4531f"
 DPI = 150
 LABEL_GAP = 0.055
+LOG_TICKS = (1, 2, 5, 10, 20, 50, 100)
 _DEV_ONLY = "DEV ONLY — survivorship-limited"
 
 
@@ -392,6 +393,8 @@ def spread_model_bars(
         part = checks.filter(pl.col("model").eq(model))
         left.plot(positions, part["estimate_bps"].to_list(), color=color, marker="o", label=label)
     left.set_yscale("log")
+    left.set_yticks(LOG_TICKS, [str(tick) for tick in LOG_TICKS])
+    left.minorticks_off()
     left.set_xticks(positions, bands, rotation=45, ha="right")
     left.set_ylabel("Half-spread, bps (log scale)", color=MUTED, fontsize=7)
     left.set_title("Estimates against published spreads", color=INK, fontsize=8, loc="left")
@@ -415,6 +418,8 @@ def spread_model_bars(
         )
     right.set_xticks(range(len(models)), labels)
     right.axhline(0.0, color=MUTED, linewidth=0.8)
+    low, _ = right.get_ylim()
+    right.set_ylim(low * 1.3, 0.0)
     right.set_title("Headline book: net Sharpe", color=INK, fontsize=8, loc="left")
-    right.legend(frameon=False, fontsize=7, labelcolor=INK)
+    right.legend(frameon=False, fontsize=7, labelcolor=INK, loc="lower center", ncols=2)
     _save(figure, "Spread models side by side", path, dev_only)

@@ -23,6 +23,8 @@ Yet the family book has the highest gross Sharpe of any family, {{family.investm
 
 Net of costs at {{spec.aum}} the Sharpe is {{family.investment.net_sharpe}} with no trade cap and {{family.investment.capped_sharpe}} with one.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is {{spread.table.family.investment.net_sharpe}} with no cap and {{spread.table.family.investment.capped_sharpe}} with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_investment.png)
 
 ![IC by horizon](../figures/decay_investment.png)
