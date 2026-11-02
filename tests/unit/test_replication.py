@@ -8,6 +8,7 @@ import shutil
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
+from typing import cast
 
 import httpx
 import numpy as np
@@ -29,6 +30,7 @@ from efp.evaluation.osap import (
     INVERTED_TARGETS,
     Convention,
     _annual_value,
+    _fiscal_years,
     annual_scores,
     formation_months,
     leg_assignments,
@@ -263,13 +265,52 @@ def test_a_series_compared_with_itself_replicates(
     assert rows["size"]["opposite_sign"] is False
 
 
-def test_annual_targets_re_form_in_june_on_fiscal_years(small_store: PitStore) -> None:
+def _annual_convention(target: str, period: int) -> Convention:
+    return Convention(target, 1, "EW", 0.2, False, period, 6, 0.0, ("NYSE", "AMEX", "NASDAQ"))
+
+
+def test_annual_portfolios_re_form_in_june_on_fiscal_years(small_store: PitStore) -> None:
     panels = load_panels(small_store)
-    for target in ("AssetGrowth", "NOA", "Accruals", "InvestPPEInv", "BMdec"):
-        scores = annual_scores(small_store, panels, target)
+    for target in ("AssetGrowth", "Accruals", "BMdec"):
+        scores = annual_scores(small_store, panels, _annual_convention(target, 12))
         assert not scores.is_empty()
         assert set(scores["asof"].dt.month().unique().to_list()) == {6}
         assert scores["z"].is_finite().all()
+
+
+def test_monthly_portfolios_keep_scores_every_month(small_store: PitStore) -> None:
+    panels = load_panels(small_store)
+    scores = annual_scores(small_store, panels, _annual_convention("NOA", 1))
+    assert set(scores["asof"].dt.month().unique().to_list()) == set(range(1, 13))
+
+
+class _FiscalStore:
+    def fundamentals(self, asof: date, items: object, history_periods: int) -> pl.DataFrame:
+        ends = [date(2021, 12, 31), date(2022, 12, 31), date(2023, 12, 31)]
+        return pl.DataFrame(
+            {
+                "company_id": ["c1"] * 3,
+                "item": ["total_assets"] * 3,
+                "fiscal_period": ["FY"] * 3,
+                "period_end": ends,
+                "value": [100.0, 110.0, 130.0],
+            }
+        )
+
+
+def test_fiscal_years_wait_six_months() -> None:
+    store = cast(PitStore, _FiscalStore())
+    before = _fiscal_years(store, date(2024, 5, 31))
+    after = _fiscal_years(store, date(2024, 6, 28))
+    assert before.row(0, named=True)["total_assets"] == 110.0
+    assert before.row(0, named=True)["total_assets_lag"] == 100.0
+    assert after.row(0, named=True)["total_assets"] == 130.0
+    assert after.row(0, named=True)["total_assets_lag"] == 110.0
+
+
+def test_fiscal_years_go_stale_after_eighteen_months() -> None:
+    wide = _fiscal_years(cast(PitStore, _FiscalStore()), date(2025, 6, 30))
+    assert wide.is_empty() or wide["total_assets"].is_null().all()
 
 
 def test_annual_formula_for_asset_growth() -> None:

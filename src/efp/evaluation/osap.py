@@ -45,8 +45,10 @@ ANNUAL_ITEMS = (
     "depreciation",
 )
 ANNUAL_TARGETS = frozenset({"AssetGrowth", "NOA", "Accruals", "InvestPPEInv", "BMdec"})
-"""Annual Compustat items lagged six months in OSAP, so each re-forms in June on the fiscal year
-that ended by the prior December. The signal library's versions use the latest quarter."""
+"""Annual Compustat items lagged six months in OSAP, valid for twelve months after that. The
+signal library's versions use the latest quarter."""
+FISCAL_LAG_MONTHS = 6
+FISCAL_STALE_MONTHS = 18
 
 
 @dataclass(frozen=True)
@@ -192,25 +194,35 @@ def long_short(assignments: pl.DataFrame, panels: Panels, weighting: str) -> pl.
     )
 
 
-def _fiscal_years(store: PitStore, june: date) -> pl.DataFrame:
-    """Wide FY values at the June formation: ``item`` and ``item_lag`` per company."""
-    rows = store.fundamentals(june, ANNUAL_ITEMS, history_periods=12).filter(
-        pl.col("fiscal_period").eq("FY"), pl.col("period_end").dt.year() < june.year
-    )
-    newest = (
-        rows.filter(pl.col("period_end").dt.year().eq(june.year - 1))
+def _age(asof: date, column: str) -> pl.Expr:
+    """Whole calendar months from a period end to ``asof``."""
+    year = pl.col(column).dt.year().cast(pl.Int32)
+    return asof.year * 12 + asof.month - year * 12 - pl.col(column).dt.month().cast(pl.Int32)
+
+
+def _fiscal_years(store: PitStore, asof: date) -> pl.DataFrame:
+    """Wide values of the newest fiscal year six months old: ``item``, ``item_lag`` per company."""
+    rows = (
+        store.fundamentals(asof, ANNUAL_ITEMS, history_periods=12)
+        .filter(pl.col("fiscal_period").eq("FY"), _age(asof, "period_end") >= FISCAL_LAG_MONTHS)
         .sort("period_end")
-        .group_by("company_id", "item", maintain_order=True)
-        .agg(pl.col("value").last())
     )
-    older = (
-        rows.filter(pl.col("period_end").dt.year().eq(june.year - 2))
-        .sort("period_end")
-        .group_by("company_id", "item", maintain_order=True)
-        .agg(pl.col("value").last())
-        .with_columns(pl.format("{}_lag", "item").alias("item"))
+    latest = (
+        rows.group_by("company_id", "item", maintain_order=True)
+        .agg(
+            pl.col("value").last(),
+            pl.col("value").shift(1).last().alias("lagged"),
+            pl.col("period_end").last().alias("end"),
+            pl.col("period_end").shift(1).last().alias("before"),
+        )
+        .filter(_age(asof, "end") < FISCAL_STALE_MONTHS)
     )
-    both = pl.concat([newest, older], how="vertical")
+    older = latest.filter(
+        (pl.col("end") - pl.col("before")).dt.total_days().is_between(300, 430)
+    ).select(
+        "company_id", pl.format("{}_lag", "item").alias("item"), pl.col("lagged").alias("value")
+    )
+    both = pl.concat([latest.select("company_id", "item", "value"), older], how="vertical")
     wide = both.pivot(on="item", index="company_id", values="value")
     for item in ANNUAL_ITEMS:
         for name in (item, f"{item}_lag"):
@@ -250,28 +262,28 @@ def _annual_value(target: str) -> pl.Expr:
     return pl.when(usable).then(-(accruals / ((assets + lagged) / 2.0)))
 
 
-def annual_scores(store: PitStore, panels: Panels, target: str) -> pl.DataFrame:
-    """``asof``, ``security_id``, ``raw``, ``z`` on each June from fiscal-year values."""
+def annual_scores(store: PitStore, panels: Panels, convention: Convention) -> pl.DataFrame:
+    """``asof``, ``security_id``, ``raw``, ``z`` at each formation, from fiscal-year values."""
     months = panels.caps["month"].unique().sort().to_list()
     position = {month: index for index, month in enumerate(months)}
     frames: list[pl.DataFrame] = []
-    for june in (month for month in months if month.month == 6):
-        index = position[june]
-        if index < 6:
+    for formed in formation_months(months, convention):
+        index = position[formed]
+        if index < FISCAL_LAG_MONTHS:
             continue
-        at_june = panels.universe.filter(pl.col("asof").eq(june)).select(
+        at_date = panels.universe.filter(pl.col("asof").eq(formed)).select(
             "asof", "security_id", "company_id"
         )
-        if target == "BMdec":
-            values = annual_characteristics(store, june, months[index - 6], panels).select(
-                "company_id", pl.col("bm").alias("z")
-            )
+        if convention.target == "BMdec":
+            values = annual_characteristics(
+                store, formed, months[index - FISCAL_LAG_MONTHS], panels
+            ).select("company_id", pl.col("bm").alias("z"))
         else:
-            values = _fiscal_years(store, june).select(
-                "company_id", _annual_value(target).alias("z")
+            values = _fiscal_years(store, formed).select(
+                "company_id", _annual_value(convention.target).alias("z")
             )
         frames.append(
-            at_june.join(values, on="company_id", how="inner").select(
+            at_date.join(values, on="company_id", how="inner").select(
                 "asof", "security_id", pl.col("z").alias("raw"), "z"
             )
         )
@@ -374,8 +386,9 @@ def replicate_all(
         scores = panel.filter(pl.col("signal").eq(name)).select("asof", "security_id", "raw", "z")
         if scores.is_empty():
             continue
-        if store is not None and target in ANNUAL_TARGETS:
-            scores = annual_scores(store, panels, target)
+        documented = doc.filter(pl.col("Acronym").eq(target)).to_dicts()
+        if store is not None and target in ANNUAL_TARGETS and documented:
+            scores = annual_scores(store, panels, read_convention(documented[0]))
         row, ours = replicate_signal(name, scores, panels, doc, published, months)
         rows.append(row)
         if "month" in ours.columns:
