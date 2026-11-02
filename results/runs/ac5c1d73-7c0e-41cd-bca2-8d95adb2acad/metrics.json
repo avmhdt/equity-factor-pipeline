@@ -8,5 +8,6 @@
     "provider": "sharadar",
     "universe": "top_3000"
   },
-  "sharpe_annual": -0.08503401280970492
+  "sharpe_annual": -0.08503401280970492,
+  "t_nw": -0.45359461501506365
 }

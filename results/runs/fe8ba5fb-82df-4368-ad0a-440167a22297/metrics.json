@@ -29,5 +29,6 @@
     "net": true,
     "provider": "sharadar"
   },
-  "sharpe_annual": -1.3035554667291145
+  "sharpe_annual": -1.3035554667291145,
+  "t_nw": -4.680004669423044
 }

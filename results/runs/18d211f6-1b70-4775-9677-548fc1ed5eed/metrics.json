@@ -13,5 +13,6 @@
     "universe": 3000,
     "weighting": "ew"
   },
-  "sharpe_annual": 0.7518963857953042
+  "sharpe_annual": 0.7518963857953042,
+  "t_nw": 3.3244108581406273
 }

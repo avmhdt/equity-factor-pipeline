@@ -13,5 +13,6 @@
     "universe": 3000,
     "weighting": "vw"
   },
-  "sharpe_annual": -0.12816198627809863
+  "sharpe_annual": -0.12816198627809863,
+  "t_nw": -0.6680914870000321
 }

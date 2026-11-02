@@ -103,11 +103,16 @@ def _log_series(series: pl.DataFrame, name: str, provider: str, universe: str, s
     )
 
 
-def french_task(store: PitStore, external: Path, sink: Sink, provider: str) -> pl.DataFrame:
-    """FF factors from our data against French's."""
+def french_task(
+    store: PitStore, external: Path, sink: Sink, provider: str, series_path: Path | None = None
+) -> pl.DataFrame:
+    """FF factors from our data against French's; ``series_path`` keeps ours for figures."""
     ours = replicate(store)
     table = compare(ours, load_french(external / "french"))
     write_table(table, sink.tables, "french_replication")
+    if series_path is not None:
+        series_path.parent.mkdir(parents=True, exist_ok=True)
+        ours.write_parquet(series_path, compression="zstd")
     for (name,), part in ours.group_by(["factor"], maintain_order=True):
         _log_series(part.sort("month"), str(name), provider, "all_eligible", sink)
     return table
@@ -383,6 +388,7 @@ def backtest_task(
             result = run_book(scores, market, mode, simulation, config)
             capped = run_book(scores, market, mode, capped_run, config)
             result.series.write_parquet(series_dir / f"{path.stem}__{mode}.parquet")
+            capped.series.write_parquet(series_dir / f"{path.stem}__{mode}__capped.parquet")
             row = summary_row(path.stem, mode, result, simulation.aum)
             capped_row = summary_row(path.stem, mode, capped, simulation.aum)
             rows.append(
@@ -511,8 +517,13 @@ def attribution_task(
     rows: list[dict[str, object]] = []
     for path in sorted(series_dir.glob(f"*__{config.headline_execution}.parquet")):
         series = pl.read_parquet(path)
-        for basis, column in (("gross", "ret_gross"), ("net", "ret")):
-            fitted = attribute(series, factors, column=column)
+        capped = pl.read_parquet(path.with_name(f"{path.stem}__capped.parquet"))
+        for basis, frame, column in (
+            ("gross", series, "ret_gross"),
+            ("net", series, "ret"),
+            ("net_capped", capped, "ret"),
+        ):
+            fitted = attribute(frame, factors, column=column)
             rows.append(
                 {
                     "composite": path.stem.split("__")[0],
