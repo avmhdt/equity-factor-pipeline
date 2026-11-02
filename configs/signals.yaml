@@ -1,0 +1,229 @@
+# Signal registry metadata. A test keeps this equal to the code. OSAP targets are verified in M5.
+accruals:
+  direction: -1
+  family: quality
+  items:
+  - current_assets
+  - cash
+  - current_liabilities
+  - short_term_debt
+  - income_taxes_payable
+  - total_assets
+  - depreciation
+  osap_target: Accruals
+  price_lookback_days: 0
+  reference: Sloan 1996
+asset_growth:
+  direction: -1
+  family: investment
+  items:
+  - total_assets
+  osap_target: AssetGrowth
+  price_lookback_days: 0
+  reference: Cooper, Gulen & Schill 2008
+beta:
+  direction: -1
+  family: low_risk
+  items: []
+  osap_target: null
+  price_lookback_days: 252
+  reference: Frazzini & Pedersen 2014
+bm:
+  direction: 1
+  family: value
+  items:
+  - book_equity
+  osap_target: BM
+  price_lookback_days: 0
+  reference: Fama & French 1992
+cfp:
+  direction: 1
+  family: value
+  items:
+  - income_before_extra
+  - depreciation
+  osap_target: CF
+  price_lookback_days: 0
+  reference: Lakonishok, Shleifer & Vishny 1994
+ebitda_ev:
+  direction: 1
+  family: value
+  items:
+  - operating_income
+  - depreciation
+  - short_term_debt
+  - long_term_debt
+  - cash
+  osap_target: null
+  price_lookback_days: 0
+  reference: Loughran & Wellman 2011
+ep:
+  direction: 1
+  family: value
+  items:
+  - income_before_extra
+  osap_target: EP
+  price_lookback_days: 0
+  reference: Basu 1977
+fscore:
+  direction: 1
+  family: quality
+  items:
+  - net_income
+  - cfo
+  - total_assets
+  - long_term_debt
+  - current_assets
+  - current_liabilities
+  - shares_out
+  - revenue
+  - cogs
+  osap_target: PS
+  price_lookback_days: 0
+  reference: Piotroski 2000
+gp_at:
+  direction: 1
+  family: quality
+  items:
+  - revenue
+  - cogs
+  - total_assets
+  osap_target: GP
+  price_lookback_days: 0
+  reference: Novy-Marx 2013
+high_52w:
+  direction: 1
+  family: momentum
+  items: []
+  osap_target: High52
+  price_lookback_days: 252
+  reference: George & Hwang 2004
+ind_mom:
+  direction: 1
+  family: momentum
+  items: []
+  osap_target: IndMom
+  price_lookback_days: 126
+  reference: Moskowitz & Grinblatt 1999
+inv_at:
+  direction: -1
+  family: investment
+  items:
+  - ppe_gross
+  - ppe_net
+  - inventory
+  - total_assets
+  osap_target: null
+  price_lookback_days: 0
+  reference: Lyandres, Sun & Zhang 2008
+ivol:
+  direction: -1
+  family: low_risk
+  items: []
+  osap_target: null
+  price_lookback_days: 21
+  reference: Ang, Hodrick, Xing & Zhang 2006
+ltr_36_13:
+  direction: -1
+  family: momentum
+  items: []
+  osap_target: LRreversal
+  price_lookback_days: 756
+  reference: De Bondt & Thaler 1985
+max_ret:
+  direction: -1
+  family: low_risk
+  items: []
+  osap_target: MaxRet
+  price_lookback_days: 21
+  reference: Bali, Cakici & Whitelaw 2011
+mom_12_1:
+  direction: 1
+  family: momentum
+  items: []
+  osap_target: Mom12m
+  price_lookback_days: 252
+  reference: Jegadeesh & Titman 1993
+mom_6_1:
+  direction: 1
+  family: momentum
+  items: []
+  osap_target: Mom6m
+  price_lookback_days: 126
+  reference: Jegadeesh & Titman 1993
+noa:
+  direction: -1
+  family: investment
+  items:
+  - total_assets
+  - cash
+  - short_term_debt
+  - long_term_debt
+  - stockholders_equity
+  - minority_interest
+  - preferred_stock
+  osap_target: NOA
+  price_lookback_days: 0
+  reference: Hirshleifer, Hou, Teoh & Zhang 2004
+nsi:
+  direction: -1
+  family: investment
+  items: []
+  osap_target: ShareIss1Y
+  price_lookback_days: 253
+  reference: Pontiff & Woodgate 2008
+roa:
+  direction: 1
+  family: quality
+  items:
+  - income_before_extra
+  - total_assets
+  osap_target: roaq
+  price_lookback_days: 0
+  reference: Balakrishnan, Bartov & Faurel 2010
+roe:
+  direction: 1
+  family: quality
+  items:
+  - income_before_extra
+  - book_equity
+  osap_target: null
+  price_lookback_days: 0
+  reference: Hou, Xue & Zhang 2015
+size:
+  direction: -1
+  family: size
+  items: []
+  osap_target: Size
+  price_lookback_days: 1
+  reference: Banz 1981
+sp:
+  direction: 1
+  family: value
+  items:
+  - revenue
+  osap_target: SP
+  price_lookback_days: 0
+  reference: Barbee, Mukherji & Raines 1996
+str_1m:
+  direction: -1
+  family: momentum
+  items: []
+  osap_target: STreversal
+  price_lookback_days: 21
+  reference: Jegadeesh 1990
+sue:
+  direction: 1
+  family: momentum
+  items:
+  - eps_diluted
+  osap_target: null
+  price_lookback_days: 0
+  reference: Foster, Olsen & Shevlin 1984; Bernard & Thomas 1989
+vol_12m:
+  direction: -1
+  family: low_risk
+  items: []
+  osap_target: null
+  price_lookback_days: 252
+  reference: Ang et al. 2006

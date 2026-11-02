@@ -11,6 +11,8 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from efp.evaluation.run import EvaluationConfig
+from efp.panel import PanelConfig
 from eqpit.pit.policy import PitPolicy
 from eqpit.settings import ProviderName
 
@@ -93,6 +95,42 @@ def pit_policy(experiment: Experiment) -> PitPolicy:
         exchanges=tuple(universe.exchanges),
         share_types=tuple(universe.share_types),
     )
+
+
+def panel_config(experiment: Experiment | None) -> PanelConfig:
+    """Panel rules; defaults when no experiment is given."""
+    if experiment is None:
+        return PanelConfig()
+    section = experiment.signals
+    bounds = section.get("winsorize", {})
+    return PanelConfig(
+        lower=float(bounds.get("lower", 0.01)),
+        upper=float(bounds.get("upper", 0.99)),
+        min_coverage=float(section.get("min_coverage", 0.5)),
+        min_names=int(section.get("min_names", 100)),
+    )
+
+
+def evaluation_config(experiment: Experiment | None) -> EvaluationConfig:
+    """Evaluation choices; defaults when no experiment is given."""
+    if experiment is None:
+        return EvaluationConfig()
+    section = experiment.evaluation
+    return EvaluationConfig(
+        quantiles=int(section.get("quantiles", 10)),
+        weightings=tuple(section.get("weighting", ("ew", "vw"))),
+        breakpoints=str(section.get("breakpoints", "nyse")),
+        universes=(experiment.universe.size, *experiment.universe.variants),
+        neutralize=tuple(experiment.signals.get("neutralize", ("none", "sector_size_beta"))),
+    )
+
+
+def trial_log_path(experiment: Experiment | None, provider: str, data_dir: Path) -> Path:
+    """Licensed runs log to the committed file; synthetic runs stay under the data root."""
+    if provider in ("sharadar", "wrds"):
+        return Path("results") / "trial_log.csv"
+    name = experiment.run.name if experiment is not None else provider
+    return data_dir / "processed" / "trials" / name / "trial_log.csv"
 
 
 def load_xbrl_map(path: Path) -> dict[str, list[str]]:

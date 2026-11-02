@@ -14,6 +14,8 @@ from eqpit.settings import get_settings
 
 _HIDDEN_UNIVERSE_COLUMNS = ("delisted_after",)
 _FUNDAMENTAL_KEY = ["company_id", "item", "period_end", "period_type"]
+_YEARS_IN_MEMORY = 4
+_VIEW_YEARS = 6
 
 
 class LabelAccessError(PermissionError):
@@ -22,6 +24,45 @@ class LabelAccessError(PermissionError):
 
 class FutureAccessError(PermissionError):
     """Signal code asked for data as of a date past the one it is computing."""
+
+
+class _Tables:
+    """Eager tables shared by a store and its signal views.
+
+    Holding them here makes a month loop cheap. It widens nothing: every public read still
+    filters on ``available_at`` before returning.
+    """
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self._frames: dict[str, pl.DataFrame] = {}
+        self._years: dict[int, pl.DataFrame] = {}
+
+    def table(self, name: str) -> pl.DataFrame:
+        if name not in self._frames:
+            self._frames[name] = pl.read_parquet(self.root / name / "**" / "*.parquet").rechunk()
+        return self._frames[name]
+
+    def fundamentals(self) -> pl.DataFrame:
+        if "fundamentals_pit" not in self._frames:
+            self._frames["fundamentals_pit"] = (
+                pl.read_parquet(self.root / "fundamentals_pit" / "**" / "*.parquet")
+                .sort(*_FUNDAMENTAL_KEY, "available_at", "accession", "value")
+                .rechunk()
+            )
+        return self._frames["fundamentals_pit"]
+
+    def prices_for_year(self, year: int) -> pl.DataFrame:
+        if year not in self._years:
+            if len(self._years) >= _YEARS_IN_MEMORY:
+                del self._years[min(self._years)]
+            path = self.root / "prices_daily" / f"year={year}" / "part-0.parquet"
+            self._years[year] = pl.read_parquet(path) if path.exists() else _empty_prices(self.root)
+        return self._years[year]
+
+
+def _empty_prices(root: Path) -> pl.DataFrame:
+    return pl.scan_parquet(root / "prices_daily" / "**" / "*.parquet").clear().collect()
 
 
 class PitStore:
@@ -38,10 +79,13 @@ class PitStore:
         *,
         max_asof: date | None = None,
         labels_allowed: bool = True,
+        tables: _Tables | None = None,
     ) -> None:
         self.root = root
         self._max_asof = max_asof
         self._labels_allowed = labels_allowed
+        self._tables = tables or _Tables(root)
+        self._memo: dict[object, pl.DataFrame] = {}
 
     @classmethod
     def open(cls, root: Path | None = None) -> PitStore:
@@ -52,11 +96,11 @@ class PitStore:
         return cls(resolved)
 
     def for_signals(self, asof: date) -> PitStore:
-        """The view handed to a signal function: no labels, and no date past ``asof``."""
-        return PitStore(self.root, max_asof=asof, labels_allowed=False)
+        """The view handed to a signal function: no labels, and no date past ``asof``.
 
-    def _scan(self, table: str) -> pl.LazyFrame:
-        return pl.scan_parquet(self.root / table / "**" / "*.parquet")
+        Reads through a view are remembered, so signals on one date share them.
+        """
+        return PitStore(self.root, max_asof=asof, labels_allowed=False, tables=self._tables)
 
     def _gate(self, asof: date) -> datetime:
         if self._max_asof is not None and asof > self._max_asof:
@@ -74,18 +118,42 @@ class PitStore:
     def universe(self, asof: date, n: int = 3000) -> pl.DataFrame:
         """Top ``n`` eligible securities at ``asof``, largest first."""
         cutoff = self._gate(asof)
-        return (
-            self._scan("universe_monthly")
-            .filter(
-                pl.col("asof") == asof,
-                pl.col("available_at") <= cutoff,
-                pl.col("rank") <= n,
+        key = ("universe", asof, n)
+        if key not in self._memo:
+            self._memo[key] = (
+                self._tables.table("universe_monthly")
+                .filter(
+                    pl.col("asof") == asof,
+                    pl.col("available_at") <= cutoff,
+                    pl.col("rank") <= n,
+                )
+                .drop(_HIDDEN_UNIVERSE_COLUMNS)
+                .sort("rank")
+                .rechunk()
             )
-            .drop(_HIDDEN_UNIVERSE_COLUMNS)
-            .sort("rank")
-            .collect()
-            .rechunk()
-        )
+        return self._memo[key]
+
+    def _price_window(self, asof: date, first: date, cutoff: datetime) -> pl.DataFrame:
+        key = ("prices", asof, first)
+        if key not in self._memo:
+            years = range(first.year, asof.year + 1)
+            self._memo[key] = (
+                pl.concat([self._tables.prices_for_year(year) for year in years], how="vertical")
+                .filter(
+                    pl.col("date").is_between(first, asof),
+                    pl.col("available_at") <= cutoff,
+                )
+                .sort("security_id", "date")
+                .with_columns(
+                    (
+                        pl.col("close")
+                        * pl.col("split_factor")
+                        / pl.col("split_factor").last().over("security_id")
+                    ).alias("adj_close")
+                )
+                .rechunk()
+            )
+        return self._memo[key]
 
     def prices(
         self, asof: date, lookback_days: int, ids: Sequence[str] | None = None
@@ -97,24 +165,46 @@ class PitStore:
         """
         cutoff = self._gate(asof)
         first = calendar.previous_session(calendar.session_on_or_after(asof), lookback_days - 1)
-        query = self._scan("prices_daily").filter(
-            pl.col("date").is_between(first, asof),
+        frame = self._price_window(asof, first, cutoff)
+        if ids is None:
+            return frame
+        return frame.filter(pl.col("security_id").is_in(list(ids))).rechunk()
+
+    def monthly(self, asof: date, months: int, ids: Sequence[str] | None = None) -> pl.DataFrame:
+        """Compounded monthly returns for the last ``months`` month ends through ``asof``."""
+        cutoff = self._gate(asof)
+        ends = calendar.month_ends(date(asof.year - months // 12 - 1, 1, 1), asof)[-months:]
+        frame = self._tables.table("prices_monthly").filter(
+            pl.col("month").is_between(ends[0], asof),
             pl.col("available_at") <= cutoff,
         )
         if ids is not None:
-            query = query.filter(pl.col("security_id").is_in(list(ids)))
+            frame = frame.filter(pl.col("security_id").is_in(list(ids)))
+        return frame.sort("security_id", "month").rechunk()
+
+    def market(self, asof: date, lookback_days: int) -> pl.DataFrame:
+        """Cap-weighted universe return for the last ``lookback_days`` sessions."""
+        cutoff = self._gate(asof)
+        first = calendar.previous_session(calendar.session_on_or_after(asof), lookback_days - 1)
         return (
-            query.sort("security_id", "date")
-            .with_columns(
-                (
-                    pl.col("close")
-                    * pl.col("split_factor")
-                    / pl.col("split_factor").last().over("security_id")
-                ).alias("adj_close")
-            )
-            .collect()
+            self._tables.table("market_daily")
+            .filter(pl.col("date").is_between(first, asof), pl.col("available_at") <= cutoff)
+            .sort("date")
             .rechunk()
         )
+
+    def _known_fundamentals(self, asof: date, cutoff: datetime) -> pl.DataFrame:
+        """Latest public version of every period; a view keeps only recent periods."""
+        key = ("fundamentals", asof)
+        if key in self._memo:
+            return self._memo[key]
+        rows = self._tables.fundamentals().filter(pl.col("available_at") <= cutoff)
+        if self._max_asof is not None:
+            rows = rows.filter(pl.col("period_end") >= date(asof.year - _VIEW_YEARS, 1, 1))
+        latest = rows.unique(subset=_FUNDAMENTAL_KEY, keep="last", maintain_order=True).rechunk()
+        if self._max_asof is not None:
+            self._memo[key] = latest
+        return latest
 
     def fundamentals(
         self,
@@ -127,38 +217,28 @@ class PitStore:
 
         For a period with several reports the latest public one wins. Args ``ids`` are
         ``company_id`` values, since fundamentals belong to issuers. ``history_periods``
-        keeps that many most recent periods per (company, item, period_type).
+        keeps that many most recent periods per (company, item, period_type). A signal view
+        sees periods from the last few years only, which is all a signal needs.
         """
         cutoff = self._gate(asof)
-        query = self._scan("fundamentals_pit").filter(
-            pl.col("item").is_in(list(items)),
-            pl.col("available_at") <= cutoff,
-        )
+        known = self._known_fundamentals(asof, cutoff)
+        rows = known.filter(pl.col("item").is_in(list(items)))
         if ids is not None:
-            query = query.filter(pl.col("company_id").is_in(list(ids)))
-        latest = (
-            query.sort(*_FUNDAMENTAL_KEY, "available_at", "accession")
-            .unique(subset=_FUNDAMENTAL_KEY, keep="last", maintain_order=True)
-            .sort(
-                ["company_id", "item", "period_type", "period_end"],
-                descending=[False, False, False, True],
-            )
-        )
+            rows = rows.filter(pl.col("company_id").is_in(list(ids)))
         recent = pl.int_range(pl.len()).over("company_id", "item", "period_type")
-        return latest.filter(recent < history_periods).collect().rechunk()
+        return rows.reverse().filter(recent < history_periods).rechunk()
 
     def securities(self, asof: date) -> pl.DataFrame:
         """Master rows valid at ``asof``."""
         cutoff = self._gate(asof)
         return (
-            self._scan("securities")
+            self._tables.table("securities")
             .filter(
                 pl.col("valid_from") <= asof,
                 pl.col("valid_to").is_null() | (pl.col("valid_to") >= asof),
                 pl.col("available_at") <= cutoff,
             )
             .sort("security_id")
-            .collect()
             .rechunk()
         )
 

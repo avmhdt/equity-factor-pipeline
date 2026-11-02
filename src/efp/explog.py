@@ -9,6 +9,7 @@ from __future__ import annotations
 import csv
 import json
 import math
+import shutil
 import statistics
 import subprocess
 import uuid
@@ -20,6 +21,7 @@ from typing import Literal
 import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
+import yaml
 
 COLUMNS = (
     "run_id",
@@ -133,8 +135,44 @@ def log_trial(record: TrialRecord, log_path: Path, runs_dir: Path) -> str:
         encoding="utf-8",
         newline="\n",
     )
+    (target.parent / "config.yaml").write_text(
+        yaml.safe_dump(record.params, sort_keys=True), encoding="utf-8", newline="\n"
+    )
+    (target.parent / "manifest.json").write_text(
+        json.dumps(
+            {"git_sha": row["git_sha"], "timestamp": row["timestamp"], "run_id": row["run_id"]},
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     _append(log_path, row)
     return row["run_id"]
+
+
+def summarize_log(log_path: Path) -> pl.DataFrame:
+    """Trials per family, with how many failed."""
+    frame = pl.read_csv(log_path, schema_overrides={"sharpe_annual": pl.Float64})
+    return (
+        frame.group_by("strategy_family")
+        .agg(pl.len().alias("trials"), pl.col("n_obs").eq(0).sum().alias("failed"))
+        .sort("strategy_family")
+    )
+
+
+def export_log(log_path: Path, dest: Path) -> int:
+    """Copy the log and every return file, for backtest-overfitting-lab to read."""
+    dest.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(log_path, dest / log_path.name)
+    copied = 0
+    for source in sorted((log_path.parent / "runs").glob("*/returns.parquet")):
+        target = dest / "runs" / source.parent.name / source.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        copied += 1
+    return copied
 
 
 def log_failed(log_path: Path, family: str, params: dict[str, object], note: str) -> str:

@@ -371,6 +371,8 @@ def _simulate(
                         tape.actions.append((int(member), day_index, "merger", None, None))
                     tape.actions.append((int(member), day_index, "delist", None, None))
         events = _month_events(rng, alive, close)
+        if month_number % 3 == 0:
+            shares = shares * np.exp(rng.normal(0.003, 0.01, capacity))
         ex_day = rng.integers(0, count_days, capacity)
         for position, day_index in enumerate(month_days):
             live = alive & (delisted >= day_index)

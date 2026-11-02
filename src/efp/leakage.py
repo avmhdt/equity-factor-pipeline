@@ -10,7 +10,9 @@ import polars as pl
 
 from eqpit.calendar import closes_on
 
-ALLOWED_IMPORT_ROOTS = frozenset({"collections", "dataclasses", "datetime", "polars", "typing"})
+ALLOWED_IMPORT_ROOTS = frozenset(
+    {"collections", "dataclasses", "datetime", "numpy", "polars", "typing"}
+)
 ALLOWED_MODULES = frozenset({"eqpit.store", "__future__"})
 FORBIDDEN_NAMES = frozenset(
     {"read_parquet", "scan_parquet", "read_csv", "scan_csv", "LabelStore", "forward_returns"}

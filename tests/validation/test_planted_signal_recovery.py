@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import polars as pl
 import pytest
 
+from efp.evaluation.ic import rank_ic
+from efp.signals.registry import compute_signals
 from eqpit.pit.build import build_pit
 from eqpit.providers.synthetic import SyntheticProvider, write_market
 from eqpit.store import PitStore
@@ -54,6 +57,42 @@ def test_planted_ic_is_recovered(
     measured, months = mean_ic(truth, labels, signal)
     assert months >= 220
     assert abs(measured - SIGNS[signal] * TARGET) <= TOLERANCE
+
+
+@pytest.fixture(scope="module")
+def signal_panel(full_market: tuple[SyntheticProvider, PitStore]) -> pl.DataFrame:
+    _, store = full_market
+    dates = store.month_ends(date(2003, 1, 1), date(2020, 11, 30))
+    return compute_signals(store, list(PLANTED_SIGNALS), dates)
+
+
+@pytest.mark.parametrize("signal", PLANTED_SIGNALS)
+def test_the_signal_library_recovers_the_planted_ic(
+    full_market: tuple[SyntheticProvider, PitStore], signal_panel: pl.DataFrame, signal: str
+) -> None:
+    """AC-W-09: the real signal code, through PitStore, finds what the generator planted."""
+    _, store = full_market
+    fwd = store.labels().forward_returns((1,))
+    ic = rank_ic(signal_panel.filter(pl.col("signal").eq(signal)), fwd, 1, "raw")
+    assert ic.height >= 200
+    assert abs(float(ic["ic"].mean()) - SIGNS[signal] * TARGET) <= TOLERANCE
+
+
+@pytest.mark.parametrize("signal", PLANTED_SIGNALS)
+def test_signal_values_match_the_generators_truth(
+    full_market: tuple[SyntheticProvider, PitStore], signal_panel: pl.DataFrame, signal: str
+) -> None:
+    provider, _ = full_market
+    truth = pl.read_parquet(provider.root / "truth" / "**" / "*.parquet").select(
+        "asof", "security_id", pl.col(signal).fill_nan(None).alias("truth")
+    )
+    joined = (
+        signal_panel.filter(pl.col("signal").eq(signal))
+        .join(truth, on=["asof", "security_id"], how="inner")
+        .drop_nulls(["raw", "truth"])
+    )
+    assert joined.height > 50_000
+    assert joined.select(pl.corr(pl.col("raw").rank(), pl.col("truth").rank())).item() > 0.97
 
 
 def test_the_market_meets_the_size_requirement(
