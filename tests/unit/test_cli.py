@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
-import click
 import pytest
 import typer
 from typer.testing import CliRunner
@@ -25,12 +25,9 @@ def isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("EFP_LOG_JSON", "0")
 
 
-def commands(group: click.Group, prefix: str = "") -> Iterator[tuple[str, click.Command]]:
-    context = click.Context(group)
-    for name in group.list_commands(context):
-        command = group.get_command(context, name)
-        assert command is not None
-        if isinstance(command, click.Group):
+def commands(group: typer.core.TyperGroup, prefix: str = "") -> Iterator[tuple[str, Any]]:
+    for name, command in group.commands.items():
+        if isinstance(command, typer.core.TyperGroup):
             yield from commands(command, f"{prefix}{name} ")
         else:
             yield f"{prefix}{name}", command
@@ -38,7 +35,7 @@ def commands(group: click.Group, prefix: str = "") -> Iterator[tuple[str, click.
 
 def test_every_command_in_the_spec_exists_and_takes_the_shared_options() -> None:
     root = typer.main.get_command(app)
-    assert isinstance(root, click.Group)
+    assert isinstance(root, typer.core.TyperGroup)
     found = dict(commands(root))
     assert set(found) == {
         "doctor",
