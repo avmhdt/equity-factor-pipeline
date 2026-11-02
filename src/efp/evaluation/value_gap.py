@@ -8,7 +8,7 @@ import polars as pl
 
 from efp.evaluation.french import (
     Panels,
-    _annual_characteristics,
+    annual_characteristics,
     bucket_returns,
     buckets,
     factor_returns,
@@ -36,7 +36,7 @@ def _june_sort(
         at_june = universe.filter(pl.col("asof").eq(june)).select(
             "security_id", "company_id", "exchange", pl.col("company_mcap").alias("size")
         )
-        values = _annual_characteristics(store, june, months[index - 6], panels)
+        values = annual_characteristics(store, june, months[index - 6], panels)
         sorted_on = at_june.join(values, on="company_id", how="inner")
         if not use_nyse:
             sorted_on = sorted_on.with_columns(pl.lit("NYSE").alias("exchange"))

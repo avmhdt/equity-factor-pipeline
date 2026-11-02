@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import date
 from functools import partial
@@ -267,7 +268,8 @@ def signals_compute(
     write_panel(panel, data_dir / "processed" / ("signals_all" if all_eligible else "signals"))
     provider = str(read_pit_manifest(store.root)["provider"])
     name = experiment.run.name if experiment is not None else provider
-    _write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
+    if not all_eligible:
+        _write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
     typer.echo(f"signals: {panel.height:,} rows, {dropped.height} signal-dates dropped")
 
 
@@ -366,14 +368,24 @@ def _validate_survivorship(store: PitStore, tables: Path, provider: str) -> None
     typer.echo(bias_table(series))
 
 
-def _validate_osap(store: PitStore, data_dir: Path, tables: Path, provider: str) -> None:
+def _validate_osap(
+    store: PitStore, data_dir: Path, tables: Path, provider: str, only: Sequence[str] | None
+) -> None:
     root = data_dir / "external" / "osap"
-    panel = read_panel(data_dir / "processed" / "signals_all")
+    panel = read_panel(data_dir / "processed" / "signals_all", only)
     table, series = replicate_all(
-        panel, load_panels(store), load_signal_doc(root), load_osap_returns(root)
+        panel, load_panels(store), load_signal_doc(root), load_osap_returns(root), store
     )
+    path = data_dir / "processed" / "osap_series.parquet"
+    if only is not None and path.is_file():
+        kept = pl.read_parquet(path).filter(~pl.col("signal").is_in(list(only)))
+        full = pl.concat([kept, series], how="vertical")
+        existing = tables / "osap_replication.csv"
+        table = merge_rows(pl.read_csv(existing), table, only) if existing.is_file() else table
+    else:
+        full = series
     _write_table(table, tables, "osap_replication")
-    series.write_parquet(data_dir / "processed" / "osap_series.parquet", compression="zstd")
+    full.write_parquet(path, compression="zstd")
     log_path = Path("results") / "trial_log.csv"
     if provider in ("sharadar", "wrds"):
         for (name,), part in series.group_by(["signal"], maintain_order=True):
@@ -439,6 +451,7 @@ def validate(
         ],
         typer.Argument(),
     ],
+    signals: Annotated[str | None, typer.Option("--signals", help="OSAP only: these")] = None,
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
@@ -458,7 +471,7 @@ def validate(
     elif target == "survivorship":
         _validate_survivorship(store, tables, provider)
     elif target == "osap":
-        _validate_osap(store, data_dir, tables, provider)
+        _validate_osap(store, data_dir, tables, provider, signals_argument(signals))
     elif target == "postpub":
         _validate_postpub(data_dir, tables, provider == "edgar_free")
     elif target == "multiple-testing":

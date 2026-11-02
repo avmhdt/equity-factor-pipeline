@@ -28,6 +28,8 @@ from efp.evaluation.multiple_testing import (
 from efp.evaluation.osap import (
     INVERTED_TARGETS,
     Convention,
+    _annual_value,
+    annual_scores,
     formation_months,
     leg_assignments,
     long_short,
@@ -259,6 +261,77 @@ def test_a_series_compared_with_itself_replicates(
     assert rows["beta"]["opposite_sign"] is True
     assert rows["beta"]["correlation"] == pytest.approx(1.0)
     assert rows["size"]["opposite_sign"] is False
+
+
+def test_annual_targets_re_form_in_june_on_fiscal_years(small_store: PitStore) -> None:
+    panels = load_panels(small_store)
+    for target in ("AssetGrowth", "NOA", "Accruals", "InvestPPEInv", "BMdec"):
+        scores = annual_scores(small_store, panels, target)
+        assert not scores.is_empty()
+        assert set(scores["asof"].dt.month().unique().to_list()) == {6}
+        assert scores["z"].is_finite().all()
+
+
+def test_annual_formula_for_asset_growth() -> None:
+    frame = pl.DataFrame({"total_assets": [120.0], "total_assets_lag": [100.0]})
+    assert frame.select(_annual_value("AssetGrowth")).item() == pytest.approx(-0.2)
+
+
+def test_annual_formula_leaves_short_term_debt_out_of_noa() -> None:
+    frame = pl.DataFrame(
+        {
+            "total_assets_lag": [100.0],
+            "total_assets": [120.0],
+            "long_term_debt": [20.0],
+            "stockholders_equity": [40.0],
+            "minority_interest": [None],
+            "cash": [10.0],
+            "short_term_debt": [99.0],
+        },
+        schema_overrides={"minority_interest": pl.Float64},
+    )
+    assert frame.select(_annual_value("NOA")).item() == pytest.approx(-0.5)
+
+
+def test_annual_accruals_need_current_assets() -> None:
+    frame = pl.DataFrame(
+        {
+            "total_assets": [100.0],
+            "total_assets_lag": [100.0],
+            "current_assets": [None],
+            "current_assets_lag": [10.0],
+            "cash": [1.0],
+            "cash_lag": [1.0],
+            "current_liabilities": [5.0],
+            "current_liabilities_lag": [5.0],
+            "short_term_debt": [1.0],
+            "short_term_debt_lag": [1.0],
+            "depreciation": [1.0],
+        },
+        schema_overrides={"current_assets": pl.Float64},
+    )
+    assert frame.select(_annual_value("Accruals")).item() is None
+
+
+def test_replication_uses_annual_timing_when_given_a_store(
+    small_store: PitStore, replication_panel: pl.DataFrame
+) -> None:
+    panels = load_panels(small_store)
+    doc = pl.DataFrame(
+        [("AssetGrowth", -1.0, "EW", 0.1, None, 12.0, 6.0, None, 1968, 2003, 2008)],
+        schema=list(DOC_COLUMNS),
+        orient="row",
+    )
+    dates = small_store.month_ends(date(2013, 1, 1), date(2013, 12, 31))
+    panel, _ = build_panel(
+        small_store, ["asset_growth", "beta", "size"], dates, PanelConfig(min_names=30)
+    )
+    empty = pl.DataFrame(schema={"month": pl.Date, "target": pl.String, "ret": pl.Float64})
+    table, series = replicate_all(
+        panel.filter(pl.col("signal").eq("asset_growth")), panels, doc, empty, small_store
+    )
+    assert table["target"].to_list() == ["AssetGrowth"]
+    assert series["month"].n_unique() > 40
 
 
 def test_a_target_missing_from_the_doc_is_listed(

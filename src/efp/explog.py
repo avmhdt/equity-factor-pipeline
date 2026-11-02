@@ -60,7 +60,7 @@ class TrialRecord:
 
 
 def _git_sha(log_path: Path) -> str:
-    """Commit hash, ``-dirty`` for tracked changes other than the log itself."""
+    """Commit hash, ``-dirty`` for tracked changes to code; results are outputs, not code."""
 
     def git(*args: str) -> str:
         return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout
@@ -69,7 +69,16 @@ def _git_sha(log_path: Path) -> str:
         sha = git("rev-parse", "HEAD").strip()
         root = Path(git("rev-parse", "--show-toplevel").strip())
         log = log_path.resolve().relative_to(root.resolve()).as_posix()
-        status = git("status", "--porcelain", "--untracked-files=no", "--", ".", f":(exclude){log}")
+        output = (root / "results").as_posix()
+        status = git(
+            "status",
+            "--porcelain",
+            "--untracked-files=no",
+            "--",
+            ".",
+            f":(exclude){log}",
+            f":(exclude,top){Path(output).relative_to(root).as_posix()}",
+        )
     except (OSError, ValueError, subprocess.CalledProcessError):
         return "0" * 40 + "-dirty"
     return f"{sha}-dirty" if status.strip() else sha

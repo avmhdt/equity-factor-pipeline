@@ -8,8 +8,9 @@ from datetime import date
 
 import polars as pl
 
-from efp.evaluation.french import Panels
+from efp.evaluation.french import Panels, annual_characteristics
 from efp.signals.registry import registered, spec_of
+from eqpit.store import PitStore
 
 DEFAULT_QUANTILE = 0.2
 THRESHOLD = 0.70
@@ -27,6 +28,25 @@ SCREENS: dict[str, pl.Expr] = {
 }
 """OSAP's signal code drops loss-makers from EP and EntMult and financials from GP. These apply
 to the replication only; the signal library keeps its own definitions."""
+
+
+ANNUAL_ITEMS = (
+    "total_assets",
+    "cash",
+    "current_assets",
+    "current_liabilities",
+    "short_term_debt",
+    "long_term_debt",
+    "stockholders_equity",
+    "minority_interest",
+    "ppe_gross",
+    "ppe_net",
+    "inventory",
+    "depreciation",
+)
+ANNUAL_TARGETS = frozenset({"AssetGrowth", "NOA", "Accruals", "InvestPPEInv", "BMdec"})
+"""Annual Compustat items lagged six months in OSAP, so each re-forms in June on the fiscal year
+that ended by the prior December. The signal library's versions use the latest quarter."""
 
 
 @dataclass(frozen=True)
@@ -170,6 +190,92 @@ def long_short(assignments: pl.DataFrame, panels: Panels, weighting: str) -> pl.
     return wide.select(
         pl.col("hold").alias("month"), (pl.col("long") - pl.col("short")).alias("ret")
     )
+
+
+def _fiscal_years(store: PitStore, june: date) -> pl.DataFrame:
+    """Wide FY values at the June formation: ``item`` and ``item_lag`` per company."""
+    rows = store.fundamentals(june, ANNUAL_ITEMS, history_periods=12).filter(
+        pl.col("fiscal_period").eq("FY"), pl.col("period_end").dt.year() < june.year
+    )
+    newest = (
+        rows.filter(pl.col("period_end").dt.year().eq(june.year - 1))
+        .sort("period_end")
+        .group_by("company_id", "item", maintain_order=True)
+        .agg(pl.col("value").last())
+    )
+    older = (
+        rows.filter(pl.col("period_end").dt.year().eq(june.year - 2))
+        .sort("period_end")
+        .group_by("company_id", "item", maintain_order=True)
+        .agg(pl.col("value").last())
+        .with_columns(pl.format("{}_lag", "item").alias("item"))
+    )
+    both = pl.concat([newest, older], how="vertical")
+    wide = both.pivot(on="item", index="company_id", values="value")
+    for item in ANNUAL_ITEMS:
+        for name in (item, f"{item}_lag"):
+            if name not in wide.columns:
+                wide = wide.with_columns(pl.lit(None, dtype=pl.Float64).alias(name))
+    return wide
+
+
+def _change(name: str) -> pl.Expr:
+    return (pl.col(name) - pl.col(f"{name}_lag")).fill_null(0.0)
+
+
+def _annual_value(target: str) -> pl.Expr:
+    """OSAP's formula, signed so that higher is the long side."""
+    assets = pl.col("total_assets")
+    lagged = pl.col("total_assets_lag")
+    if target == "AssetGrowth":
+        return -(assets / lagged - 1.0)
+    if target == "NOA":
+        operating = (
+            pl.col("long_term_debt").fill_null(0.0)
+            + pl.col("stockholders_equity")
+            + pl.col("minority_interest").fill_null(0.0)
+            - pl.col("cash").fill_null(0.0)
+        )
+        return -(operating / lagged)
+    if target == "InvestPPEInv":
+        plant = pl.coalesce("ppe_gross", "ppe_net") - pl.coalesce("ppe_gross_lag", "ppe_net_lag")
+        return -((plant + _change("inventory")) / lagged)
+    accruals = (
+        _change("current_assets")
+        - _change("cash")
+        - (_change("current_liabilities") - _change("short_term_debt"))
+        - pl.col("depreciation")
+    )
+    usable = pl.col("current_assets").is_not_null() & pl.col("current_assets_lag").is_not_null()
+    return pl.when(usable).then(-(accruals / ((assets + lagged) / 2.0)))
+
+
+def annual_scores(store: PitStore, panels: Panels, target: str) -> pl.DataFrame:
+    """``asof``, ``security_id``, ``raw``, ``z`` on each June from fiscal-year values."""
+    months = panels.caps["month"].unique().sort().to_list()
+    position = {month: index for index, month in enumerate(months)}
+    frames: list[pl.DataFrame] = []
+    for june in (month for month in months if month.month == 6):
+        index = position[june]
+        if index < 6:
+            continue
+        at_june = panels.universe.filter(pl.col("asof").eq(june)).select(
+            "asof", "security_id", "company_id"
+        )
+        if target == "BMdec":
+            values = annual_characteristics(store, june, months[index - 6], panels).select(
+                "company_id", pl.col("bm").alias("z")
+            )
+        else:
+            values = _fiscal_years(store, june).select(
+                "company_id", _annual_value(target).alias("z")
+            )
+        frames.append(
+            at_june.join(values, on="company_id", how="inner").select(
+                "asof", "security_id", pl.col("z").alias("raw"), "z"
+            )
+        )
+    return pl.concat(frames, how="vertical").filter(pl.col("z").is_finite())
 
 
 def replicate_signal(
