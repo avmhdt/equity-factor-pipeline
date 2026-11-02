@@ -1,0 +1,17 @@
+# edgar_free development run. DEV ONLY: survivorship-limited, never headline results.
+run:
+  name: dev_free
+  seed: 20261030
+  provider: edgar_free
+  start: 2010-01-29
+  end: 2026-10-30
+data:
+  root: ./data
+  snapshot: latest
+pit:
+  extra_lag_trading_days: 1
+universe:
+  size: 3000
+  variants: [1000]
+edgar_free:
+  max_companies: 150

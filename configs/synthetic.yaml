@@ -1,0 +1,21 @@
+# CI end-to-end run on generated data.
+run:
+  name: synthetic
+  seed: 7
+  provider: synthetic
+  start: 2001-01-31
+  end: 2020-12-31
+data:
+  root: ./data
+  snapshot: latest
+pit:
+  extra_lag_trading_days: 1
+universe:
+  size: 3000
+  variants: [1000]
+experiment_log:
+  path: results/trial_log.csv
+  runs_dir: results/runs
+synthetic:
+  n_securities: 500
+  years: 20
