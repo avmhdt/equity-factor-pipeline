@@ -22,6 +22,14 @@ log = structlog.get_logger(__name__)
 SCORES = {"none": "z", "sector_size_beta": "z_neutral"}
 DECAY_HORIZONS = (1, 2, 3, 6, 9, 12)
 DECAY_LAGS = (0, 1, 2, 3, 6, 9, 12)
+TABLE_KEYS = {
+    "ic_summary": ("signal", "universe", "neutralize"),
+    "quantile_spreads": ("signal", "universe", "neutralize", "weighting"),
+    "turnover": ("signal", "neutralize"),
+    "decay": ("signal", "neutralize", "curve", "step"),
+    "fama_macbeth": ("signal", "model", "neutralize"),
+}
+"""Row order of each evaluation table, so tables built in parts match one built whole."""
 Logger = Callable[[TrialRecord], str]
 
 

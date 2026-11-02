@@ -13,6 +13,16 @@ pit:
 universe:
   size: 3000
   variants: [1000]
+signals:
+  include: all
+  min_names: 30
+evaluation:
+  quantiles: 10
+combination:
+  methods: [equal, ic_weighted, ridge]
+  ridge: {min_train_months: 60}
+backtest:
+  capacity: {points: 7}
 experiment_log:
   path: results/trial_log.csv
   runs_dir: results/runs

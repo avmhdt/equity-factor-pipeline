@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import replace
 from datetime import date
-from functools import partial
 from pathlib import Path
 from typing import Annotated, Literal, NoReturn
 
@@ -13,10 +11,15 @@ import polars as pl
 import polars.selectors
 import typer
 
+from efp.backtest.run import load_market
 from efp.config import (
     Experiment,
+    backtest_config,
+    combine_config,
+    combine_methods,
     config_hash,
     evaluation_config,
+    headline_composite,
     load_config,
     load_xbrl_map,
     panel_config,
@@ -24,28 +27,37 @@ from efp.config import (
     trial_log_path,
 )
 from efp.doctor import run_doctor
-from efp.evaluation.french import compare, load_panels, replicate
-from efp.evaluation.multiple_testing import hurdle_table, trial_statistics
-from efp.evaluation.osap import replicate_all
-from efp.evaluation.postpub import per_signal, pooled_regression, summary_rows, tag_periods
 from efp.evaluation.run import evaluate_panel, merge_rows, signals_argument
-from efp.evaluation.survivorship import bias_table, delisted_names_by_year, series_by_mode
-from efp.evaluation.value_gap import decompose
-from efp.explog import TrialRecord, export_log, log_trial, summarize_log
+from efp.explog import export_log, summarize_log
 from efp.logs import configure_logging
 from efp.panel import ALL_ELIGIBLE, all_signals, build_panel, read_panel, write_panel
 from efp.pipeline.cache import StageCache
-from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
-from efp.reports.figures import post_publication_bars
-from efp.settings import ProviderName, Settings, get_settings
-from efp.signals.registry import spec_of
-from eqpit.benchmarks import (
-    load_french,
-    load_osap_returns,
-    load_signal_doc,
-    pull_french,
-    pull_osap,
+from efp.pipeline.research_stages import (
+    benchmark_ids,
+    publish_research,
+    research_stages,
+    write_timings,
 )
+from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
+from efp.reports.tables import write_table
+from efp.research import (
+    LICENSED,
+    Sink,
+    attribution_task,
+    backtest_task,
+    capacity_task,
+    combine_task,
+    factor_table,
+    french_task,
+    multiple_testing_task,
+    osap_task,
+    postpub_task,
+    rebalance_dates,
+    survivorship_task,
+    value_gap_task,
+)
+from efp.settings import ProviderName, Settings, get_settings
+from eqpit.benchmarks import pull_french, pull_osap
 from eqpit.edgar.xbrl_map import DEFAULT_XBRL_MAP, XbrlMap
 from eqpit.pit.build import build_pit, read_pit_manifest, rebuild_universe
 from eqpit.pit.policy import PitPolicy
@@ -235,16 +247,25 @@ def universe_build(config: ConfigOption = None, log_level: LogLevelOption = None
 
 def _dates(store: PitStore, experiment: Experiment | None) -> list[date]:
     """Rebalance dates: the experiment's window, else the whole sample."""
-    prices = pl.scan_parquet(store.root / "prices_monthly" / "**" / "*.parquet")
-    bounds = prices.select(
-        pl.col("month").min().alias("first"), pl.col("month").max().alias("last")
-    ).collect()
-    first: date = bounds["first"][0]
-    last: date = bounds["last"][0]
-    if experiment is not None:
-        first = max(first, experiment.run.start)
-        last = min(last, experiment.run.end)
-    return store.month_ends(first, last)
+    if experiment is None:
+        return rebalance_dates(store, None, None)
+    return rebalance_dates(store, experiment.run.start, experiment.run.end)
+
+
+def _sink(data_dir: Path, provider: str, experiment: Experiment | None) -> Sink:
+    """Licensed runs publish figures to ``reports/``; the free path logs no trials."""
+    name = experiment.run.name if experiment is not None else provider
+    tables = _tables_dir(data_dir, provider, name)
+    figures = Path("reports") / "figures" if provider in LICENSED else tables / "figures"
+    log_path = None if provider == "edgar_free" else trial_log_path(experiment, provider, data_dir)
+    return Sink(tables, figures, log_path)
+
+
+def _experiment(experiment: Experiment | None) -> Experiment:
+    if experiment is None:
+        typer.echo("--config is required", err=True)
+        raise typer.Exit(code=2)
+    return experiment
 
 
 @signals_app.command("compute")
@@ -269,7 +290,7 @@ def signals_compute(
     provider = str(read_pit_manifest(store.root)["provider"])
     name = experiment.run.name if experiment is not None else provider
     if not all_eligible:
-        _write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
+        write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
     typer.echo(f"signals: {panel.height:,} rows, {dropped.height} signal-dates dropped")
 
 
@@ -290,11 +311,8 @@ def evaluate(
     rules = evaluation_config(experiment)
     if neutralize != "both":
         rules = replace(rules, neutralize=(neutralize,))
-    logger = None
-    if provider in ("sharadar", "wrds", "synthetic"):
-        log_path = trial_log_path(experiment, provider, data_dir)
-        logger = partial(_log_record, log_path=log_path)
-    tables = evaluate_panel(panel, store, rules, provider, logger)
+    sink = _sink(data_dir, provider, experiment)
+    tables = evaluate_panel(panel, store, rules, provider, sink.record)
     directory = _tables_dir(data_dir, provider, name)
     chosen = signals_argument(signals)
     for table_name, table in tables.items():
@@ -302,145 +320,8 @@ def evaluate(
         merged = table
         if chosen is not None and existing.is_file():
             merged = merge_rows(pl.read_csv(existing), table, chosen)
-        _write_table(merged, directory, table_name)
+        write_table(merged, directory, table_name)
     typer.echo(f"wrote {len(tables)} tables to {directory}")
-
-
-def _log_record(record: TrialRecord, log_path: Path) -> str:
-    return log_trial(record, log_path, log_path.parent / "runs")
-
-
-def _write_table(frame: pl.DataFrame, directory: Path, name: str) -> None:
-    """Write an aggregate table as CSV and Markdown."""
-    directory.mkdir(parents=True, exist_ok=True)
-    frame.write_csv(directory / f"{name}.csv", line_terminator="\n", float_precision=6)
-    header = "| " + " | ".join(frame.columns) + " |"
-    rule = "|" + "---|" * frame.width
-    rows = [
-        "| " + " | ".join("" if cell is None else str(cell) for cell in row) + " |"
-        for row in frame.with_columns(pl.selectors.float().round(6)).iter_rows()
-    ]
-    text = "\n".join([header, rule, *rows]) + "\n"
-    (directory / f"{name}.md").write_text(text, encoding="utf-8", newline="\n")
-
-
-def _log_series(
-    series: pl.DataFrame, name: str, provider: str, universe: str, log_path: Path
-) -> None:
-    """One contract row per factor series. ``ret`` is already a long-short excess return."""
-    record = TrialRecord(
-        "replication",
-        {
-            "factor": name,
-            "construction": "ff_2x3_nyse",
-            "universe": universe,
-            "provider": provider,
-            "freq": "M",
-            "net": False,
-        },
-        series.select(pl.col("month").alias("date"), "ret"),
-        "M",
-    )
-    log_trial(record, log_path, log_path.parent / "runs")
-
-
-def _validate_french(store: PitStore, data_dir: Path, tables: Path, provider: str) -> None:
-    log_path = Path("results") / "trial_log.csv"
-    ours = replicate(store)
-    table = compare(ours, load_french(data_dir / "external" / "french"))
-    _write_table(table, tables, "french_replication")
-    if provider in ("sharadar", "wrds"):
-        for (name,), part in ours.group_by(["factor"], maintain_order=True):
-            _log_series(part.sort("month"), str(name), provider, "all_eligible", log_path)
-    typer.echo(table)
-    if not table.filter(pl.col("passed").eq(False)).is_empty():
-        raise typer.Exit(code=1)
-
-
-def _validate_survivorship(store: PitStore, tables: Path, provider: str) -> None:
-    log_path = Path("results") / "trial_log.csv"
-    series = series_by_mode(store)
-    _write_table(bias_table(series), tables, "survivorship_bias")
-    _write_table(delisted_names_by_year(store), tables, "universe_delisted_by_year")
-    if provider in ("sharadar", "wrds"):
-        for (name, mode), part in series.group_by(["series", "mode"], maintain_order=True):
-            _log_series(part.sort("month"), str(name), provider, str(mode), log_path)
-    typer.echo(bias_table(series))
-
-
-def _validate_osap(
-    store: PitStore, data_dir: Path, tables: Path, provider: str, only: Sequence[str] | None
-) -> None:
-    root = data_dir / "external" / "osap"
-    panel = read_panel(data_dir / "processed" / "signals_all", only)
-    table, series = replicate_all(
-        panel, load_panels(store), load_signal_doc(root), load_osap_returns(root), store
-    )
-    path = data_dir / "processed" / "osap_series.parquet"
-    if only is not None and path.is_file():
-        kept = pl.read_parquet(path).filter(~pl.col("signal").is_in(list(only)))
-        full = pl.concat([kept, series], how="vertical")
-        existing = tables / "osap_replication.csv"
-        table = merge_rows(pl.read_csv(existing), table, only) if existing.is_file() else table
-    else:
-        full = series
-    _write_table(table, tables, "osap_replication")
-    full.write_parquet(path, compression="zstd")
-    log_path = Path("results") / "trial_log.csv"
-    if provider in ("sharadar", "wrds"):
-        for (name,), part in series.group_by(["signal"], maintain_order=True):
-            _log_series(part.sort("month"), f"osap_{name}", provider, "all_eligible", log_path)
-    typer.echo(f"replicated {table['passed'].sum()} of {table.height} signals at 0.70")
-
-
-def _validate_postpub(data_dir: Path, tables: Path, dev_only: bool) -> None:
-    root = data_dir / "external" / "osap"
-    doc = load_signal_doc(root)
-    targets = pl.DataFrame(
-        {
-            "signal": list(all_signals()),
-            "target": [spec_of(name).osap_target for name in all_signals()],
-        }
-    ).drop_nulls("target")
-    ours = pl.read_parquet(data_dir / "processed" / "osap_series.parquet").join(
-        targets, on="signal"
-    )
-    published = load_osap_returns(root).join(targets, on="target")
-    tagged_ours = tag_periods(ours, doc)
-    tagged_published = tag_periods(published, doc)
-    summary = summary_rows(
-        {
-            "Ours, Sharadar 1998 on": pooled_regression(tagged_ours),
-            "OSAP published series": pooled_regression(tagged_published),
-        }
-    )
-    _write_table(summary, tables, "post_publication")
-    by_signal = per_signal(tagged_published)
-    _write_table(by_signal, tables, "post_publication_by_signal")
-    if not dev_only:
-        post_publication_bars(by_signal, Path("reports") / "figures" / "post_publication.png")
-    typer.echo(summary)
-
-
-def _validate_multiple_testing(tables: Path) -> None:
-    table = hurdle_table(trial_statistics(Path("results") / "trial_log.csv"))
-    _write_table(table, tables, "multiple_testing")
-    typer.echo(
-        f"{table.height} trials: {table['t_over_2'].sum()} over t=2, "
-        f"{table['t_over_3'].sum()} over t=3, {table['bhy_5pct'].sum()} under 5% BHY"
-    )
-
-
-def _validate_value_gap(store: PitStore, data_dir: Path, tables: Path) -> None:
-    table = decompose(
-        store,
-        load_panels(store),
-        read_panel(data_dir / "processed" / "signals", ["bm"]),
-        load_french(data_dir / "external" / "french"),
-        store.labels().forward_returns((1,)),
-    )
-    _write_table(table, tables, "value_gap_decomposition")
-    typer.echo(table)
 
 
 @app.command()
@@ -463,58 +344,135 @@ def validate(
     data_dir = _data_dir(settings, experiment)
     root = data_dir / "processed" / "pit"
     provider = str(read_pit_manifest(root)["provider"])
-    run_name = experiment.run.name if experiment is not None else provider
-    tables = _tables_dir(data_dir, provider, run_name)
+    sink = _sink(data_dir, provider, experiment)
     store = PitStore.open(root)
+    external = data_dir / "external"
+    processed = data_dir / "processed"
+    series = processed / "osap_series.parquet"
     if target == "french":
-        _validate_french(store, data_dir, tables, provider)
+        table = french_task(store, external, sink, provider)
+        typer.echo(table)
+        if not table.filter(pl.col("passed").eq(False)).is_empty():
+            raise typer.Exit(code=1)
     elif target == "survivorship":
-        _validate_survivorship(store, tables, provider)
+        typer.echo(survivorship_task(store, sink, provider))
     elif target == "osap":
-        _validate_osap(store, data_dir, tables, provider, signals_argument(signals))
+        chosen = signals_argument(signals)
+        panel = read_panel(processed / "signals_all", chosen)
+        replicated = osap_task(store, panel, external, series, sink, provider, chosen)
+        typer.echo(f"replicated {replicated['passed'].sum()} of {replicated.height} at 0.70")
     elif target == "postpub":
-        _validate_postpub(data_dir, tables, provider == "edgar_free")
+        typer.echo(postpub_task(series, external, sink, provider == "edgar_free"))
     elif target == "multiple-testing":
-        _validate_multiple_testing(tables)
+        hurdle = multiple_testing_task(Path("results") / "trial_log.csv", sink)
+        typer.echo(
+            f"{hurdle.height} trials: {hurdle['t_over_2'].sum()} over t=2, "
+            f"{hurdle['t_over_3'].sum()} over t=3, {hurdle['bhy_5pct'].sum()} under 5% BHY"
+        )
     else:
-        _validate_value_gap(store, data_dir, tables)
+        typer.echo(value_gap_task(store, read_panel(processed / "signals", ["bm"]), external, sink))
+
+
+def _open_run(
+    settings: Settings, experiment: Experiment | None
+) -> tuple[Experiment, Path, PitStore, Sink]:
+    chosen = _experiment(experiment)
+    data_dir = _data_dir(settings, chosen)
+    store = PitStore.open(data_dir / "processed" / "pit")
+    provider = str(read_pit_manifest(store.root)["provider"])
+    return chosen, data_dir, store, _sink(data_dir, provider, chosen)
 
 
 @app.command()
 def combine(
-    method: Annotated[str | None, typer.Option("--method")] = None,
+    method: Annotated[
+        Literal["equal", "ic_weighted", "ridge"] | None, typer.Option("--method")
+    ] = None,
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
     """Composite panels; logs trials."""
-    _start(config, log_level)
-    _pending("M6")
+    settings, loaded = _start(config, log_level)
+    experiment, data_dir, store, sink = _open_run(settings, loaded)
+    _, family_mode = headline_composite(experiment)
+    built = combine_task(
+        read_panel(data_dir / "processed" / "signals"),
+        store.labels().forward_returns((1,)),
+        (method,) if method is not None else combine_methods(experiment),
+        tuple(experiment.signals.get("neutralize", ("none", "sector_size_beta"))),
+        family_mode,
+        combine_config(experiment),
+        data_dir / "processed" / "composites",
+        sink,
+        experiment.run.provider,
+        experiment.universe.size,
+    )
+    typer.echo(f"built {len(built)} composites")
 
 
 @app.command()
 def backtest(
-    execution: Annotated[str | None, typer.Option("--execution")] = None,
+    execution: Annotated[
+        Literal["close", "next_open", "next_close", "next_vwap_proxy"] | None,
+        typer.Option("--execution"),
+    ] = None,
     gross_only: Annotated[bool, typer.Option("--gross-only")] = False,
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
     """Backtest series; logs trials."""
-    _start(config, log_level)
-    _pending("M6")
+    settings, loaded = _start(config, log_level)
+    experiment, data_dir, store, sink = _open_run(settings, loaded)
+    rules = backtest_config(experiment)
+    if execution is not None:
+        rules = replace(rules, executions=(execution,))
+    market = load_market(store, _dates(store, experiment), rules)
+    headline, _ = headline_composite(experiment)
+    summary = backtest_task(
+        data_dir / "processed" / "composites",
+        market,
+        rules,
+        headline,
+        sink,
+        data_dir / "processed" / "backtest",
+        experiment.run.provider,
+        gross_only,
+    )
+    typer.echo(summary)
 
 
 @app.command()
 def capacity(config: ConfigOption = None, log_level: LogLevelOption = None) -> None:
     """Capacity curve and estimate."""
-    _start(config, log_level)
-    _pending("M6")
+    settings, loaded = _start(config, log_level)
+    experiment, data_dir, store, sink = _open_run(settings, loaded)
+    rules = backtest_config(experiment)
+    rules = replace(rules, executions=(rules.headline_execution,))
+    headline, _ = headline_composite(experiment)
+    provider = experiment.run.provider
+    typer.echo(
+        capacity_task(
+            pl.read_parquet(data_dir / "processed" / "composites" / f"{headline}.parquet"),
+            load_market(store, _dates(store, experiment), rules),
+            factor_table(store, data_dir / "external", provider),
+            rules,
+            sink,
+            provider == "edgar_free",
+        )
+    )
 
 
 @app.command()
 def attribute(config: ConfigOption = None, log_level: LogLevelOption = None) -> None:
     """FF5 + UMD attribution."""
-    _start(config, log_level)
-    _pending("M6")
+    settings, loaded = _start(config, log_level)
+    experiment, data_dir, store, sink = _open_run(settings, loaded)
+    factors = factor_table(store, data_dir / "external", experiment.run.provider)
+    typer.echo(
+        attribution_task(
+            data_dir / "processed" / "backtest", factors, backtest_config(experiment), sink
+        )
+    )
 
 
 @app.command()
@@ -540,8 +498,12 @@ def rebuild(
     snapshots = (
         {} if provider == "synthetic" else get_provider(provider, root=raw_root).snapshot_ids()
     )
+    external = data_dir / "external"
+    if provider in LICENSED:
+        snapshots = {**snapshots, **benchmark_ids(external)}
+    log_path = trial_log_path(experiment, provider, data_dir)
     runs = run_stages(
-        build_stages(experiment, raw_root),
+        [*build_stages(experiment, raw_root), *research_stages(experiment, external, log_path)],
         StageCache(data_dir / "interim"),
         RunContext(
             config_hash=config_hash(experiment),
@@ -552,7 +514,10 @@ def rebuild(
         force=force,
         from_stage=from_stage,
     )
-    publish(runs, data_dir, _tables_dir(data_dir, provider, experiment.run.name))
+    sink = _sink(data_dir, provider, experiment)
+    publish(runs, data_dir, sink.tables)
+    publish_research(runs, sink.tables, sink.figures)
+    write_timings(runs, sink.tables)
     for run in runs:
         state = "cached" if run.cached else "ran"
         typer.echo(f"{run.stage:<20} {state:<7} {run.seconds:8.3f}s {run.key[:12]}")
