@@ -41,6 +41,8 @@ DEFAULT_XBRL_MAP: XbrlMap = {
         "RevenueFromContractWithCustomerIncludingAssessedTax",
     ],
     "cogs": ["CostOfGoodsAndServicesSold", "CostOfRevenue", "CostOfGoodsSold"],
+    "sga": ["SellingGeneralAndAdministrativeExpense"],
+    "interest_expense": ["InterestExpense"],
     "operating_income": ["OperatingIncomeLoss"],
     "net_income": ["NetIncomeLoss", "ProfitLoss"],
     "income_before_extra": [

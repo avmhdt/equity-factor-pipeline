@@ -82,6 +82,7 @@ module = [
     "exchange_calendars.*",
     "linearmodels.*",
     "numba.*",
+    "pyarrow.*",
     "scipy.*",
     "sklearn.*",
     "statsmodels.*",

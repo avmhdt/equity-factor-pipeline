@@ -147,8 +147,7 @@ def test_provider_lookup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
     monkeypatch.setenv("EFP_DATA_DIR", str(tmp_path))
     assert get_provider("synthetic").name == "synthetic"
     assert get_provider("edgar_free").survivorship_free is False
-    with pytest.raises(ProviderUnavailableError, match="M3"):
-        get_provider("sharadar")
+    assert get_provider("sharadar").survivorship_free is True
     with pytest.raises(ProviderUnavailableError, match="WRDS"):
         get_provider("wrds")
 

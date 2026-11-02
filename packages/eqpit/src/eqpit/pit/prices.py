@@ -70,7 +70,8 @@ def build_prices(raw: pl.DataFrame, actions: pl.DataFrame) -> pl.DataFrame:
     Args:
         raw: rows with ``security_id``, ``date``, unadjusted ``open``, ``high``, ``low``,
             ``close``, ``volume`` and same-date ``shares_out``. CRSP-style negative closes
-            mean a bid/ask midpoint.
+            mean a bid/ask midpoint. An optional ``ret_vendor`` column overrides the computed
+            return wherever it is not null.
         actions: canonical corporate actions.
 
     Returns:
@@ -85,11 +86,14 @@ def build_prices(raw: pl.DataFrame, actions: pl.DataFrame) -> pl.DataFrame:
     terms = _daily_action_terms(prices, actions)
     frame = prices.join(terms, on=["security_id", "date"], how="left").sort("security_id", "date")
     previous = pl.col("close").shift(1).over("security_id")
+    vendor = pl.col("ret_vendor") if "ret_vendor" in frame.columns else pl.lit(None, pl.Float64)
     frame = frame.with_columns(
-        pl.when(previous > 0)
-        .then((pl.col("close") * pl.col("split_ratio") + pl.col("cash")) / previous - 1.0)
-        .otherwise(None)
-        .alias("ret"),
+        pl.coalesce(
+            vendor,
+            pl.when(previous > 0).then(
+                (pl.col("close") * pl.col("split_ratio") + pl.col("cash")) / previous - 1.0
+            ),
+        ).alias("ret"),
         pl.col("split_ratio").cum_prod().over("security_id").alias("split_factor"),
         (pl.col("close") * pl.col("volume")).alias("dollar_volume"),
         (pl.col("close") * pl.col("shares_out")).alias("mcap"),

@@ -9,11 +9,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 
 from eqpit.settings import ProviderName
 
+BenchmarkName = Literal["french", "osap", "jkp"]
 MANIFEST_NAME = "manifest.json"
 SNAPSHOT_FORMAT = "%Y%m%dT%H%M%SZ"
 
@@ -29,7 +31,7 @@ class SnapshotIntegrityError(ValueError):
 class SnapshotManifest(BaseModel):
     """Provenance record for one raw snapshot."""
 
-    provider: ProviderName
+    provider: ProviderName | BenchmarkName
     dataset: str
     snapshot_id: str
     created_at: datetime
@@ -63,7 +65,7 @@ def snapshot_dir(root: Path, dataset: str, snapshot: str) -> Path:
 @contextmanager
 def open_snapshot(
     root: Path,
-    provider: ProviderName,
+    provider: ProviderName | BenchmarkName,
     dataset: str,
     survivorship_limited: bool,
     *,
