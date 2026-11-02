@@ -163,5 +163,7 @@ def get_provider(
 
         return EdgarFreeProvider(base, policy, xbrl_map, max_companies)
     if chosen == "sharadar":
-        raise ProviderUnavailableError("the sharadar provider arrives in M3")
+        from eqpit.providers.sharadar import SharadarProvider
+
+        return SharadarProvider(base, policy, xbrl_map)
     raise ProviderUnavailableError("the wrds provider is off: the owner has no WRDS access")

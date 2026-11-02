@@ -24,6 +24,8 @@ revenue:
   - SalesRevenueNet
   - RevenueFromContractWithCustomerIncludingAssessedTax
 cogs: [CostOfGoodsAndServicesSold, CostOfRevenue, CostOfGoodsSold]
+sga: [SellingGeneralAndAdministrativeExpense]
+interest_expense: [InterestExpense]
 operating_income: [OperatingIncomeLoss]
 net_income: [NetIncomeLoss, ProfitLoss]
 income_before_extra: [IncomeLossFromContinuingOperations, NetIncomeLoss]

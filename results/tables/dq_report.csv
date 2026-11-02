@@ -1,0 +1,30 @@
+check,status,hard,detail
+DQ-01,pass,true,0 null available_at in securities
+DQ-01,pass,true,0 null available_at in prices_daily
+DQ-01,pass,true,0 null available_at in delistings
+DQ-01,pass,true,0 null available_at in corp_actions
+DQ-01,pass,true,0 null available_at in filings
+DQ-01,pass,true,0 null available_at in fundamentals_pit
+DQ-01,pass,true,0 null available_at in universe_monthly
+DQ-02,pass,true,0 filings available before acceptance
+DQ-02,pass,true,0 fundamentals available before acceptance
+DQ-03,pass,true,0 filings rows available by their period end
+DQ-03,pass,true,0 fundamentals_pit rows available by their period end
+DQ-04,info,false,0.8764 of fundamentals linked to acceptance
+DQ-05,pass,true,0 first reports marked as restatements
+DQ-05,pass,true,0 later reports not marked as restatements
+DQ-05,info,false,66360 restated values kept as new rows
+DQ-07,pass,true,0 company-months with two classes
+DQ-07,pass,true,0 months with broken ranks
+DQ-07,pass,true,0 universe dates that are not month ends
+DQ-07,info,false,"835639 universe-months of names that later delisted, over 30 years"
+DQ-08,pass,true,0 delistings with an unknown reason
+DQ-08,pass,true,0 delistings with no return
+DQ-08,info,false,"imputation rules: shumway_nasdaq=3339, shumway_nyse_amex=1425, zero=9942"
+DQ-09,pass,true,0 rows where mcap is not close times shares
+DQ-09,pass,true,0 unmapped corporate action types
+DQ-10,pass,true,0 extreme returns left unflagged
+DQ-10,info,false,"491273 rows flagged, none dropped"
+DQ-12,pass,true,0 label tables behind the gate
+DQ-17,pass,true,0 price dates off the calendar
+DQ-16,pass,true,"provider sharadar, survivorship_limited False"

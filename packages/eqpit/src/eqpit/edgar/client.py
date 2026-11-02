@@ -17,6 +17,7 @@ import structlog
 
 from eqpit.edgar.ratelimit import TokenBucket
 from eqpit.settings import Settings, get_settings
+from eqpit.throttle import ByteThrottle
 
 log = structlog.get_logger(__name__)
 
@@ -163,7 +164,7 @@ class EdgarClient:
         """Fetch ``url`` and decode it as JSON."""
         return json.loads(self.get_bytes(url))
 
-    def download(self, url: str, dest: Path) -> str:
+    def download(self, url: str, dest: Path, throttle: ByteThrottle | None = None) -> str:
         """Stream ``url`` to ``dest`` and return its sha256; used for bulk zips."""
         self.stats.throttled_seconds += self._bucket.acquire()
         self.stats.requests += 1
@@ -172,7 +173,9 @@ class EdgarClient:
         with self._http.stream("GET", url) as response:
             response.raise_for_status()
             with dest.open("wb") as handle:
-                for chunk in response.iter_bytes(chunk_size=1 << 20):
+                for chunk in response.iter_bytes(chunk_size=1 << 18):
                     handle.write(chunk)
                     digest.update(chunk)
+                    if throttle is not None:
+                        throttle.consumed(len(chunk))
         return digest.hexdigest()

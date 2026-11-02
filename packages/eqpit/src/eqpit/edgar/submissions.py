@@ -65,19 +65,21 @@ def overflow_pages(payload: Mapping[str, Any], since: date) -> list[str]:
     ]
 
 
-def parse_filing_block(cik: int, block: Mapping[str, Any]) -> pl.DataFrame:
+def parse_filing_block(
+    cik: int, block: Mapping[str, Any], forms: Sequence[str] = FORMS
+) -> pl.DataFrame:
     """Rows for the wanted forms from ``filings.recent`` or an overflow page.
 
     ``acceptanceDateTime`` ends in ``Z`` and is true UTC. On 2009, 2012, 2015 and 2026 filings
     it matches the ET time on the EDGAR filing index once converted (see docs/pit.md).
     """
-    forms = block.get("form") or []
-    if not forms:
+    listed = block.get("form") or []
+    if not listed:
         return pl.DataFrame(schema=_EMPTY)
     frame = pl.DataFrame(
         {
             "accession": block["accessionNumber"],
-            "form": forms,
+            "form": listed,
             "period_end": block["reportDate"],
             "filed": block["filingDate"],
             "acceptance_dt": block["acceptanceDateTime"],
@@ -85,7 +87,7 @@ def parse_filing_block(cik: int, block: Mapping[str, Any]) -> pl.DataFrame:
         schema={name: pl.String for name in _EMPTY if name != "cik"},
     )
     return (
-        frame.filter(pl.col("form").is_in(FORMS))
+        frame.filter(pl.col("form").is_in(list(forms)))
         .with_columns(
             pl.lit(cik, dtype=pl.Int64).alias("cik"),
             pl.col("period_end").replace("", None).str.to_date("%Y-%m-%d", strict=False),

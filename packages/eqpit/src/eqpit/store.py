@@ -192,3 +192,26 @@ class LabelStore:
         ends = calendar.month_ends(prices["date"].min(), last)  # type: ignore[arg-type]
         returns = monthly_returns(prices, self._read("delistings"), ends, include_delisting)
         return returns.filter(pl.col("month").is_between(start, end))
+
+    def universe_history(self) -> pl.DataFrame:
+        """Every ``universe_monthly`` row, including the ``delisted_after`` diagnostic."""
+        return self._read("universe_monthly").sort("asof", "rank")
+
+    def month_end_caps(self) -> pl.DataFrame:
+        """``month``, ``security_id`` and ``mcap`` at every month-end session."""
+        prices = pl.scan_parquet(self.root / "prices_daily" / "**" / "*.parquet")
+        bounds = prices.select(
+            pl.col("date").min().alias("first"), pl.col("date").max().alias("last")
+        ).collect()
+        ends = calendar.month_ends(bounds["first"][0], bounds["last"][0])
+        return (
+            prices.filter(pl.col("date").is_in(ends))
+            .select(pl.col("date").alias("month"), "security_id", "mcap")
+            .drop_nulls("mcap")
+            .sort("month", "security_id")
+            .collect()
+        )
+
+    def delisted_ids(self) -> pl.Series:
+        """Securities that delisted at any point in the sample."""
+        return self._read("delistings")["security_id"].unique().sort()

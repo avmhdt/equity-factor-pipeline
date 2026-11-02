@@ -27,6 +27,10 @@ Every row in the point-in-time tables carries `available_at`, the UTC instant it
 
 The last row shows the 17:30 rule too: accepted at 21:45 ET on the 22nd, it carries a filing date of the 23rd.
 
+### Sharadar
+
+Fundamentals come from AR* dimensions only, which are time-indexed to the SEC filing date and are not rewritten by later restatements. Each filing is linked to EDGAR by CIK, filing date and a period end within 5 days, which gives it an acceptance time. Filings with no link fall back on filing date + 1 trading day, which is never earlier than the acceptance rule. Compare `results/tables/pit_method_coverage.csv`.
+
 ## Prices and corporate actions
 
 | Table | `available_at` |
@@ -38,6 +42,8 @@ The last row shows the 17:30 rule too: accepted at 21:45 ET on the 22nd, it carr
 | `universe_monthly` | The close of the as-of date |
 
 `split_factor` only looks back: it is the cumulative ratio up to and including each date. A factor "to latest" would make old rows depend on later splits. `PitStore.prices` returns `adj_close` in the share basis of the as-of date.
+
+On Sharadar, `sharesbas` is restated to the latest split basis, so market cap is `close * sharesbas * sharefactor`, using the split-adjusted close. The shares figure comes from the latest filing public at each day's close. SIC, venue and ticker history come from the vendor's change events, so a stock is not classified by what it later became.
 
 ## Labels
 

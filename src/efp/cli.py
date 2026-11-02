@@ -6,14 +6,20 @@ from datetime import date
 from pathlib import Path
 from typing import Annotated, Literal, NoReturn
 
+import polars as pl
+import polars.selectors
 import typer
 
 from efp.config import Experiment, config_hash, load_config, load_xbrl_map, pit_policy
 from efp.doctor import run_doctor
+from efp.evaluation.french import compare, replicate
+from efp.evaluation.survivorship import bias_table, delisted_names_by_year, series_by_mode
+from efp.explog import TrialRecord, log_trial
 from efp.logs import configure_logging
 from efp.pipeline.cache import StageCache
 from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
 from efp.settings import ProviderName, Settings, get_settings
+from eqpit.benchmarks import load_french, pull_french
 from eqpit.edgar.xbrl_map import DEFAULT_XBRL_MAP, XbrlMap
 from eqpit.pit.build import build_pit, read_pit_manifest, rebuild_universe
 from eqpit.pit.policy import PitPolicy
@@ -21,6 +27,7 @@ from eqpit.pit.verify import write_reports
 from eqpit.providers.base import get_provider
 from eqpit.providers.synthetic import write_market
 from eqpit.snapshot import prune_snapshots
+from eqpit.store import PitStore
 from eqpit.synthetic import SyntheticConfig
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
@@ -116,13 +123,19 @@ def data_pull(
 
 @data_app.command("pull-benchmarks")
 def data_pull_benchmarks(
-    sources: Annotated[str, typer.Option("--sources")] = "french,osap",
+    sources: Annotated[str, typer.Option("--sources")] = "french",
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
     """Download external benchmark files."""
-    _start(config, log_level)
-    _pending("M3")
+    settings, experiment = _start(config, log_level)
+    root = _data_dir(settings, experiment) / "external"
+    for source in (item.strip() for item in sources.split(",")):
+        if source != "french":
+            typer.echo(f"{source}: arrives in M5", err=True)
+            raise typer.Exit(code=2)
+        manifest = pull_french(root / "french")
+        typer.echo(f"french snapshot={manifest.snapshot_id}")
 
 
 @data_app.command("build-pit")
@@ -214,6 +227,40 @@ def evaluate(
     _pending("M4")
 
 
+def _write_table(frame: pl.DataFrame, directory: Path, name: str) -> None:
+    """Write an aggregate table as CSV and Markdown."""
+    directory.mkdir(parents=True, exist_ok=True)
+    frame.write_csv(directory / f"{name}.csv", line_terminator="\n", float_precision=6)
+    header = "| " + " | ".join(frame.columns) + " |"
+    rule = "|" + "---|" * frame.width
+    rows = [
+        "| " + " | ".join("" if cell is None else str(cell) for cell in row) + " |"
+        for row in frame.with_columns(pl.selectors.float().round(6)).iter_rows()
+    ]
+    text = "\n".join([header, rule, *rows]) + "\n"
+    (directory / f"{name}.md").write_text(text, encoding="utf-8", newline="\n")
+
+
+def _log_series(
+    series: pl.DataFrame, name: str, provider: str, universe: str, log_path: Path
+) -> None:
+    """One contract row per factor series. ``ret`` is already a long-short excess return."""
+    record = TrialRecord(
+        "replication",
+        {
+            "factor": name,
+            "construction": "ff_2x3_nyse",
+            "universe": universe,
+            "provider": provider,
+            "freq": "M",
+            "net": False,
+        },
+        series.select(pl.col("month").alias("date"), "ret"),
+        "M",
+    )
+    log_trial(record, log_path, log_path.parent / "runs")
+
+
 @app.command()
 def validate(
     target: Annotated[
@@ -224,8 +271,35 @@ def validate(
     log_level: LogLevelOption = None,
 ) -> None:
     """Validation tables."""
-    _start(config, log_level)
-    _pending("M3 or M5")
+    settings, experiment = _start(config, log_level)
+    if target not in ("french", "survivorship"):
+        _pending("M5")
+    data_dir = _data_dir(settings, experiment)
+    root = data_dir / "processed" / "pit"
+    provider = str(read_pit_manifest(root)["provider"])
+    run_name = experiment.run.name if experiment is not None else provider
+    tables = _tables_dir(data_dir, provider, run_name)
+    store = PitStore.open(root)
+    log_path = Path("results") / "trial_log.csv"
+    if target == "french":
+        ours = replicate(store)
+        table = compare(ours, load_french(data_dir / "external" / "french"))
+        _write_table(table, tables, "french_replication")
+        if provider in ("sharadar", "wrds"):
+            for (name,), part in ours.group_by(["factor"], maintain_order=True):
+                _log_series(part.sort("month"), str(name), provider, "all_eligible", log_path)
+        typer.echo(table)
+        failed = table.filter(pl.col("passed").eq(False))
+        if not failed.is_empty():
+            raise typer.Exit(code=1)
+        return
+    series = series_by_mode(store)
+    _write_table(bias_table(series), tables, "survivorship_bias")
+    _write_table(delisted_names_by_year(store), tables, "universe_delisted_by_year")
+    if provider in ("sharadar", "wrds"):
+        for (name, mode), part in series.group_by(["series", "mode"], maintain_order=True):
+            _log_series(part.sort("month"), str(name), provider, str(mode), log_path)
+    typer.echo(bias_table(series))
 
 
 @app.command()

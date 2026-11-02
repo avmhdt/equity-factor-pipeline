@@ -1,0 +1,12 @@
+{
+  "n_obs": 334,
+  "params": {
+    "construction": "ff_2x3_nyse",
+    "factor": "umd",
+    "freq": "M",
+    "net": false,
+    "provider": "sharadar",
+    "universe": "all_eligible"
+  },
+  "sharpe_annual": 0.2498503640789915
+}

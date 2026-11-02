@@ -1,0 +1,12 @@
+{
+  "n_obs": 310,
+  "params": {
+    "construction": "ff_2x3_nyse",
+    "factor": "low_risk",
+    "freq": "M",
+    "net": false,
+    "provider": "sharadar",
+    "universe": "survivors_only"
+  },
+  "sharpe_annual": -0.2786693535338616
+}

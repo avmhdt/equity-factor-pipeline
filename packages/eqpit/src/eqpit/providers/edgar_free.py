@@ -35,6 +35,7 @@ from eqpit.providers import stooq
 from eqpit.providers.base import ProviderUnavailableError, RawProvider
 from eqpit.settings import ProviderName, get_settings
 from eqpit.snapshot import SnapshotManifest, latest_snapshot, open_snapshot, read_manifest
+from eqpit.throttle import ByteThrottle
 
 log = structlog.get_logger(__name__)
 
@@ -129,7 +130,7 @@ class EdgarFreeProvider(RawProvider):
         ) as staging:
             (staging / _TICKERS_FILE).write_text(json.dumps(companies), encoding="utf-8")
             if self.max_companies is None:
-                client.download(BULK_SUBMISSIONS_URL, staging / "submissions.zip")
+                client.download(BULK_SUBMISSIONS_URL, staging / "submissions.zip", ByteThrottle())
             else:
                 for company in companies:
                     cik = int(company["cik"])
@@ -155,7 +156,7 @@ class EdgarFreeProvider(RawProvider):
             row_counts=counts,
         ) as staging:
             if self.max_companies is None:
-                client.download(BULK_COMPANYFACTS_URL, staging / "companyfacts.zip")
+                client.download(BULK_COMPANYFACTS_URL, staging / "companyfacts.zip", ByteThrottle())
             else:
                 for company in companies:
                     cik = int(company["cik"])
