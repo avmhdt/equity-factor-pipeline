@@ -1,8 +1,8 @@
 signal,target,weighting,quantile,period,opposite_sign,months,correlation,mean_ours,mean_osap,same_sign,passed,reason
-accruals,Accruals,EW,0.100000,12,false,318,0.267829,0.001689,0.000462,true,false,correlation under 0.70
-asset_growth,AssetGrowth,EW,0.100000,12,false,318,0.458808,0.013862,0.008530,true,false,correlation under 0.70
+accruals,Accruals,EW,0.100000,12,false,330,0.392000,0.000144,0.000888,true,false,correlation under 0.70
+asset_growth,AssetGrowth,EW,0.100000,12,false,330,0.843816,0.007843,0.009241,true,true,""
 beta,Beta,EW,0.200000,1,true,329,0.857229,-0.000466,-0.005472,true,true,""
-bm,BMdec,EW,0.200000,12,false,330,0.623918,0.006005,0.004260,true,false,correlation under 0.70
+bm,BMdec,EW,0.200000,12,false,330,0.906674,0.004204,0.004260,true,true,""
 cfp,CF,EW,0.100000,12,false,318,0.737371,0.006437,0.003311,true,true,""
 ebitda_ev,EntMult,EW,0.100000,12,false,318,0.858625,0.003552,0.006146,true,true,""
 ep,EP,EW,0.200000,1,false,324,0.790370,0.004050,0.002828,true,true,""
@@ -10,13 +10,13 @@ fscore,PS,VW,0.100000,1,false,321,0.224922,0.005579,0.005349,true,false,correlat
 gp_at,GP,VW,0.200000,12,false,318,0.718218,0.006872,0.005608,true,true,""
 high_52w,High52,EW,0.300000,6,false,324,0.975668,0.005138,0.001789,true,true,""
 ind_mom,IndMom,EW,0.300000,6,false,330,0.868280,0.005568,0.005278,true,true,""
-inv_at,InvestPPEInv,EW,0.300000,1,false,322,0.639412,0.005383,0.002870,true,false,correlation under 0.70
+inv_at,InvestPPEInv,EW,0.300000,1,false,330,0.804457,0.002964,0.003199,true,true,""
 ivol,IdioVol3F,VW,0.200000,1,false,334,0.949492,0.006236,0.003206,true,true,""
 ltr_36_13,LRreversal,EW,0.200000,1,false,301,0.933156,0.001777,0.001090,true,true,""
 max_ret,MaxRet,VW,0.100000,1,false,334,0.948317,0.005706,0.001612,true,true,""
 mom_12_1,Mom12m,EW,0.100000,3,false,324,0.921025,0.011198,0.007977,true,true,""
 mom_6_1,Mom6m,EW,0.100000,3,false,330,0.930484,0.013638,0.010700,true,true,""
-noa,NOA,EW,0.100000,1,false,322,0.245647,0.003399,0.005183,true,false,correlation under 0.70
+noa,NOA,EW,0.100000,1,false,330,0.462941,0.001789,0.006176,true,false,correlation under 0.70
 nsi,ShareIss1Y,EW,0.200000,12,false,318,0.733994,0.006716,0.009178,true,true,""
 roa,roaq,EW,0.100000,1,false,332,0.960336,0.014152,0.010467,true,true,""
 roe,RoE,EW,0.200000,12,false,330,0.857219,0.004955,0.003199,true,true,""
