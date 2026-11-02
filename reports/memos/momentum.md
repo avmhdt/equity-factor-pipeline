@@ -28,6 +28,8 @@ As a family, an equal-weight neutralized book has a gross Sharpe of 0.73 and alp
 
 Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.74 with no cap and -0.74 with one. That's a follow-up, not a test, and the result is still below zero.
 
+A second round after the failure added published impact laws to published spreads. With the trade cap the Sharpe is 0.01 under Almgren and 0.09 under Zarinelli, with alpha of -1.2% (t -0.7) and -0.3% (t -0.1). Neither clears t = 3.0, so no net edge is established, and a second look at the same data is weak evidence either way.
+
 ![Monthly IC](../figures/ic_momentum.png)
 
 ![IC by horizon](../figures/decay_momentum.png)

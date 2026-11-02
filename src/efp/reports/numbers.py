@@ -11,6 +11,12 @@ from efp.signals.registry import registered, spec_of
 
 FAMILIES = ("value", "momentum", "quality", "investment", "low_risk")
 SPREAD_KEYS = {"corwin_schultz": "cs", "abdi_ranaldo": "ar", "size_bucket": "table"}
+LAW_KEYS = {
+    "square_root_k1": "k1",
+    "square_root_average": "average",
+    "almgren_2005": "almgren",
+    "zarinelli_2015": "zarinelli",
+}
 CHECK_KEYS = {
     "<$100M": "micro",
     "$100-250M": "small",
@@ -69,6 +75,14 @@ FIXED = {
     "spec.recent_start": "2010",
     "spec.books": "8",
     "spec.models": "3",
+    "spec.laws": "4",
+    "spec.spread_pairs": "2",
+    "spec.zarinelli_y_large": "0.19",
+    "spec.zarinelli_y_small": "0.12",
+    "spec.almgren_eta": "0.142",
+    "spec.almgren_gamma": "0.314",
+    "spec.peak_to_average": "2/3",
+    "spec.few_percent": "2%",
     "spec.capped_exposure": "0.38",
 }
 """Settings the documents state: spec thresholds, D-03 to D-06 and measured diagnostics."""
@@ -260,6 +274,76 @@ def _spread_models(tables: Path, headline: str) -> dict[str, str]:
     return found
 
 
+def _impact_rule(table: pl.DataFrame, composite: str) -> str:
+    """Rule 6 in ``docs/decisions.md``, computed so the words can't drift from the tables."""
+    chosen = table.filter(
+        pl.col("composite").eq(composite), pl.col("spread_model").eq("size_bucket")
+    )
+    for law in ("almgren_2005", "zarinelli_2015"):
+        rows = chosen.filter(pl.col("impact_model").eq(law))
+        full = rows.filter(pl.col("period").eq("full"))
+        recent = rows.filter(pl.col("period").eq("2010_on"))
+        if full.is_empty() or recent.is_empty():
+            return "not met"
+        if full["capped_alpha_t"].item() <= 3.0 or recent["capped_net_mean_annual"].item() <= 0.0:
+            return "not met"
+    return "met"
+
+
+def _impact_models(tables: Path, headline: str) -> dict[str, str]:
+    found: dict[str, str] = {}
+    books = _named_books(headline)
+    table = _read(tables, "impact_models")
+    if table is not None:
+        for row in table.iter_rows(named=True):
+            if row["composite"] not in books:
+                continue
+            spread = SPREAD_KEYS[row["spread_model"]]
+            base = f"impact.{LAW_KEYS[row['impact_model']]}.{spread}.{books[row['composite']]}"
+            if row["period"] != "full":
+                base += ".recent"
+            found[f"{base}.net_sharpe"] = _num(row["net_sharpe"])
+            found[f"{base}.capped_sharpe"] = _num(row["capped_net_sharpe"])
+            found[f"{base}.capped_mean"] = _pct(row["capped_net_mean_annual"])
+            found[f"{base}.capped_alpha"] = _pct(row["capped_alpha_annual"])
+            found[f"{base}.capped_alpha_t"] = _num(row["capped_alpha_t"], 1)
+        found["impact.rule.headline"] = _impact_rule(table, headline)
+        found["impact.rule.top1000"] = _impact_rule(table, f"{headline}_top1000")
+    capacity = _read(tables, "impact_model_capacity")
+    if capacity is not None:
+        for row in capacity.iter_rows(named=True):
+            if row["composite"] in books:
+                law = LAW_KEYS[row["impact_model"]]
+                spread = SPREAD_KEYS[row["spread_model"]]
+                base = f"impact.{law}.{spread}.{books[row['composite']]}"
+                found[f"{base}.capacity"] = _capacity_text(row)
+    checks = _read(tables, "impact_model_checks")
+    if checks is not None:
+        ratios: list[float] = []
+        for row in checks.iter_rows(named=True):
+            size = f"{row['share_of_daily_volume'] * 100.0:g}"
+            for column, value in row.items():
+                if column != "share_of_daily_volume":
+                    found[f"impactcheck.{column}.{size}"] = _num(value, 1)
+            if size == "1":
+                ratios = [
+                    row["square_root_k1"] / row[name]
+                    for name in ("almgren_2005", "zarinelli_large", "frazzini_size_terms")
+                ]
+        found["impactcheck.ratio_low"] = _num(min(ratios), 1)
+        found["impactcheck.ratio_high"] = _num(max(ratios), 1)
+    profile = _read(tables, "impact_trade_profile")
+    if profile is not None:
+        for row in profile.iter_rows(named=True):
+            if row["composite"] in books:
+                base = f"profile.{books[row['composite']]}"
+                found[f"{base}.within_2"] = _pct(row["traded_within_2pct_adv"], 0)
+                found[f"{base}.within_10"] = _pct(row["traded_within_10pct_adv"], 0)
+                found[f"{base}.above_day"] = _pct(row["traded_above_one_day_volume"], 0)
+                found[f"{base}.top_1000"] = _pct(row["traded_in_top_1000"], 0)
+    return found
+
+
 def _validation(tables: Path) -> dict[str, str]:
     found: dict[str, str] = {}
     french = _read(tables, "french_replication")
@@ -321,6 +405,8 @@ def _trials(tables: Path, log_path: Path) -> dict[str, str]:
         found["trials.dirty"] = str(log.filter(pl.col("git_sha").str.ends_with("-dirty")).height)
         late = log.filter(pl.col("x_note").fill_null("").str.contains("spread model"))
         found["trials.late_spread"] = str(late.height)
+        second = log.filter(pl.col("x_note").fill_null("").str.contains("impact model"))
+        found["trials.late_impact"] = str(second.height)
     table = _read(tables, "multiple_testing")
     if table is not None:
         positive = table.filter(pl.col("t_nw") > 0)
@@ -345,6 +431,7 @@ def build_numbers(tables: Path, log_path: Path, headline: str, execution: str) -
     found |= _family_counts(tables)
     found |= _portfolio(tables, headline, execution)
     found |= _spread_models(tables, headline)
+    found |= _impact_models(tables, headline)
     found |= _validation(tables)
     found |= _trials(tables, log_path)
     for name in registered():

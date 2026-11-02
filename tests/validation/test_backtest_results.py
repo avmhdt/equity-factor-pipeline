@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import polars as pl
@@ -101,3 +102,51 @@ def test_later_spread_runs_are_counted_and_marked() -> None:
     late = log.filter(pl.col("x_note").fill_null("").str.contains("spread model"))
     assert late.height >= 32
     assert late["params_json"].str.contains('"spread_model"').all()
+
+
+def test_coefficient_one_stays_the_headline_and_matches_the_summary() -> None:
+    models = _read("impact_models").filter(
+        pl.col("composite").eq(HEADLINE),
+        pl.col("impact_model").eq("square_root_k1"),
+        pl.col("spread_model").eq("corwin_schultz"),
+        pl.col("period").eq("full"),
+    )
+    summary = _read("backtest_summary").filter(
+        pl.col("composite").eq(HEADLINE), pl.col("execution").eq("next_vwap_proxy")
+    )
+    for column in ("net_mean_annual", "net_sharpe", "capped_net_mean_annual", "capped_net_sharpe"):
+        assert models[column].item() == pytest.approx(summary[column].item(), abs=1e-6)
+
+
+def test_every_law_has_every_spread_and_book() -> None:
+    table = _read("impact_models")
+    sizes = table.group_by("composite", "impact_model", "spread_model").len()
+    assert set(sizes["len"]) == {2}
+    assert table["impact_model"].n_unique() == 4
+    assert table["spread_model"].n_unique() == 2
+
+
+def test_the_impact_rule_outcome_matches_the_words() -> None:
+    path = TABLES.parent / "readme_numbers.json"
+    if not path.is_file():
+        pytest.skip("run efp report first")
+    numbers = json.loads(path.read_text(encoding="utf-8"))
+    table = _read("impact_models").filter(
+        pl.col("spread_model").eq("size_bucket"),
+        pl.col("impact_model").is_in(["almgren_2005", "zarinelli_2015"]),
+        pl.col("period").eq("full"),
+    )
+    for book, composite in (("headline", HEADLINE), ("top1000", f"{HEADLINE}_top1000")):
+        rows = table.filter(pl.col("composite").eq(composite))
+        passed = rows["capped_alpha_t"].min() > 3.0  # type: ignore[operator]
+        assert numbers[f"impact.rule.{book}"] == ("met" if passed else "not met")
+
+
+def test_impact_runs_are_counted_and_marked() -> None:
+    log = pl.read_csv(
+        TABLES.parent / "trial_log.csv",
+        schema_overrides={"x_note": pl.String, "sharpe_annual": pl.Float64},
+    )
+    late = log.filter(pl.col("x_note").fill_null("").str.contains("impact model"))
+    assert late.height >= 96
+    assert late["params_json"].str.contains('"impact_model"').all()

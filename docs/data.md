@@ -19,6 +19,13 @@ The size table in `efp/backtest/spread_table.py` and the benchmark checks use tw
 - SEC staff, *A characterization of market quality for small capitalization US equities*, 2013 MIDAS data, Tables 1 and 4.
 - Hagstromer, *Overestimated effective spreads: Implications for investors*, midpoint effective spread for S&P 500 stocks, November 30 to December 4, 2015. The published form is *Bias in the effective bid-ask spread*, Journal of Financial Economics, 2021.
 
+## Published impact studies
+
+- Toth et al., *Anomalous price impact and the critical nature of liquidity in financial markets*, Physical Review X, 2011.
+- Almgren, Thum, Hauptmann and Li, *Direct estimation of equity market impact*, 2005.
+- Zarinelli, Treccani, Farmer and Lillo, *Beyond the square root*, Market Microstructure and Liquidity, 2015, Table 4.
+- Frazzini, Israel and Moskowitz, *Trading costs of asset pricing anomalies*, 2012 draft, Table V, used as a check only.
+
 ## Pulling and building
 
 ```bash

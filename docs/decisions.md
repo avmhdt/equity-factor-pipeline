@@ -43,6 +43,7 @@ Spec defaults stand for D-03, D-05, D-06 except borrow, D-08, D-10, D-13 and D-1
 |---|---|---|
 | D-06 borrow cost | Flat 25 bps/yr | 0.25%/yr top 500, 1.0%/yr ranks 501–1,000, 5.0%/yr otherwise, shared with `stat-arb-pairs` |
 | D-06 spread model | Corwin-Schultz alone | Abdi-Ranaldo and the size-bucket table reported beside it, disclosed as run after the net failure. Corwin-Schultz stays the headline |
+| D-06 market impact | Coefficient 1.0 alone | Checked against published evidence, disclosed as the second round after the net failure. Coefficient 1.0 stays in the table and the headline |
 
 ## Reference hardware (NFR targets)
 
@@ -178,6 +179,11 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | Impact round | Rule 4: range | The sources describe single orders, and none reaches a trade above a day's volume. Only the 10% ADV capped book is inside their range. Uncapped figures are shown, but marked as outside it | Almgren says its model works for orders of a few percent of ADV in large caps, so a book with its median name near rank 2,000 is already outside its sample |
 | Impact round | Rule 5: pairing | Each law runs with Corwin-Schultz and with the size table | Corwin-Schultz failed its check. Running only with it would test impact against a known overstatement |
 | Impact round | Rule 6: what would count | A net result counts as positive only if the capped book has FF5 + UMD alpha above t = 3.0, and is positive from 2010, under both fitted laws (Almgren and Zarinelli) with the size table. Anything short of that is reported as not established. Even a pass is a hypothesis to test on new data, because it comes from a second round after a failure | Set high on purpose: this is the spec's own hurdle, and more looks at the same data can only weaken what a result means |
+| Impact round | Rule outcome | Not met, for the top 3,000 and the top 1,000. Capped alpha on the size table is 4.4% (t 2.4) and 5.2% (t 2.9) for the top 3,000, and 6.0% (t 2.9) and 6.2% (t 3.0) for the top 1,000. All four are positive from 2010 | Almgren misses t = 3.0 in both books, so the rule fails on it. The README's wording comes from `impact.rule.*`, computed from the table |
+| Impact round | What it found | Coefficient 1.0 is 2.7x to 6.5x published estimates at 1% of daily volume. On Corwin-Schultz the capped book stays negative under every law. On the size table it's positive under both fitted laws | Costs at D-06 values were too high to judge the book. A net edge is not established, and neither is its absence |
+| Impact round | Almgren uncapped | Not meaningful: its linear term gives -22,472% a year on trades of many days' volume | Rule 4 set uncapped figures aside before this was seen |
+| Impact round | Trials | 96 rows, marked in `x_note`. Coefficient 1.0 rows weren't repeated | 3 laws, 2 spread models, 8 books, capped and uncapped |
+| Impact round | Stop here | No third round on this data | Each look weakens what a result can mean. New data or measured execution costs would settle it |
 
 ## Known limits on the free path
 

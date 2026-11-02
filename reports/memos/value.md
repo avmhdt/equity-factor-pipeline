@@ -26,6 +26,8 @@ Our value factor is not HML. Its correlation with HML falls from 0.99 under Fama
 
 Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.17 with no cap and -0.34 with one. That's a follow-up, not a test, and the result is still below zero.
 
+A second round after the failure added published impact laws to published spreads. With the trade cap the Sharpe is 0.05 under Almgren and 0.10 under Zarinelli, with alpha of -1.8% (t -1.2) and -1.2% (t -0.8). Neither clears t = 3.0, so no net edge is established, and a second look at the same data is weak evidence either way.
+
 ![Monthly IC](../figures/ic_value.png)
 
 ![IC by horizon](../figures/decay_value.png)

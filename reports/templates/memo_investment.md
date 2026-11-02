@@ -25,6 +25,8 @@ Net of costs at {{spec.aum}} the Sharpe is {{family.investment.net_sharpe}} with
 
 Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is {{spread.table.family.investment.net_sharpe}} with no cap and {{spread.table.family.investment.capped_sharpe}} with one. That's a follow-up, not a test, and the result is still below zero.
 
+A second round after the failure added published impact laws to published spreads. With the trade cap the Sharpe is {{impact.almgren.table.family.investment.capped_sharpe}} under Almgren and {{impact.zarinelli.table.family.investment.capped_sharpe}} under Zarinelli, with alpha of {{impact.almgren.table.family.investment.capped_alpha}} (t {{impact.almgren.table.family.investment.capped_alpha_t}}) and {{impact.zarinelli.table.family.investment.capped_alpha}} (t {{impact.zarinelli.table.family.investment.capped_alpha_t}}). Neither clears t = {{spec.hurdle}}, so no net edge is established, and a second look at the same data is weak evidence either way.
+
 ![Monthly IC](../figures/ic_investment.png)
 
 ![IC by horizon](../figures/decay_investment.png)

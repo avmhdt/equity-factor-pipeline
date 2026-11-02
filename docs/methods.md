@@ -64,6 +64,14 @@ Two other spread models were run after the Corwin-Schultz result failed, at the 
 
 `spread_models.csv` has each book under each model, with and without the cap, for the full sample and from 2010. `spread_model_capacity.csv` has capacity at each impact multiplier. `spread_model_checks.csv` compares each model with the published figures for the same stocks.
 
+Published impact laws were run as a second round after the net failure, at the owner's request. Headline figures don't use them. Each gives average cost per dollar for a trade that is a share `x` of daily volume:
+
+- **Y = 1, averaged:** `(2/3) * vol * sqrt(x)`. Toth et al. give `Y vol sqrt(Q/V)` with Y of order unity for the price change across an order, and filling evenly along that path pays 2/3 of it.
+- **Almgren et al. 2005:** `I/2 + vol * 0.142 * x^(3/5)`, with `I = 0.314 * vol * x * (market cap / ADV)^(1/4)`, over one day.
+- **Zarinelli et al. 2015:** `range * Y * x^delta / (1 + delta)`, with `range` the 20-day mean of `(high - low) / open`. Y and delta are 0.19 and 0.51 for ranks to 500, 0.15 and 0.46 to rank 1,000, and 0.12 and 0.42 beyond. The paper gives no thresholds for its size classes, so the D-06 ranks stand in.
+
+`impact_models.csv` has each law with Corwin-Schultz and the size table, capped and uncapped, for the full sample and from 2010. `impact_model_capacity.csv` has capacity, `impact_model_checks.csv` has costs at set trade sizes, and `impact_trade_profile.csv` shows where the book's trades sit against the sources' range.
+
 Costs apply to the trade in every name, including one leaving the book. A name with no inputs pays the spread floor and the top borrow rate.
 
 Every composite runs uncapped, as FR-23 specifies, and capped at 10% of ADV, as FR-24 specifies for capacity. A capped book misses trades and stops being dollar neutral.
