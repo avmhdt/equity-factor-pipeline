@@ -303,8 +303,3 @@ def test_cli_writes_tables_outside_results_for_synthetic(workspace: Path) -> Non
     assert (tables / "french_replication.md").is_file()
     assert (tables / "survivorship_bias.csv").is_file()
     assert not (workspace / "results").exists()
-
-
-def test_cli_says_when_later_targets_arrive(workspace: Path) -> None:
-    result = CliRunner().invoke(app, ["validate", "osap"])
-    assert result.exit_code == 2

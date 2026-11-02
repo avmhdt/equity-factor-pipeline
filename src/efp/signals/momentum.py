@@ -84,13 +84,15 @@ def ind_mom(store: PitStore, asof: date) -> pl.DataFrame:
                 "input_available_at": pl.Datetime("ns", "UTC"),
             }
         )
-    start = store.universe(ends[-7], 3000).select(
+    start = store.universe(ends[-7], store.signal_universe).select(
         "security_id", "ff49", pl.col("company_mcap").alias("weight")
     )
     returns = window_return(store, asof, 5, 0)
     joined = start.join(returns, on="security_id", how="inner").drop_nulls(["ff49", "weight"])
     industries = joined.group_by("ff49", maintain_order=True).agg(
-        ((pl.col("window") * pl.col("weight")).sum() / pl.col("weight").sum()).alias("industry"),
+        ((pl.col("window") * pl.col("weight")).sort().sum() / pl.col("weight").sort().sum()).alias(
+            "industry"
+        ),
         pl.col("available_at").max(),
     )
     assigned = now.join(industries, on="ff49", how="inner")
@@ -105,7 +107,7 @@ def ind_mom(store: PitStore, asof: date) -> pl.DataFrame:
         ("eps_diluted",),
         0,
         "Foster, Olsen & Shevlin 1984; Bernard & Thomas 1989",
-        None,
+        "EarningsSurprise",
     )
 )
 def sue(store: PitStore, asof: date) -> pl.DataFrame:

@@ -68,8 +68,10 @@ def registered() -> tuple[str, ...]:
     return tuple(sorted(_REGISTRY))
 
 
-def compute_signals(store: PitStore, ids: Sequence[str], dates: Sequence[date]) -> pl.DataFrame:
-    """Run signals over rebalance dates.
+def compute_signals(
+    store: PitStore, ids: Sequence[str], dates: Sequence[date], universe: int = 3000
+) -> pl.DataFrame:
+    """Run signals over rebalance dates, over the largest ``universe`` names.
 
     Each call gets ``store.for_signals(asof)``: forward returns raise, and so does asking for
     any date past the one being computed.
@@ -79,7 +81,7 @@ def compute_signals(store: PitStore, ids: Sequence[str], dates: Sequence[date]) 
     """
     frames: list[pl.DataFrame] = []
     for asof in dates:
-        view = store.for_signals(asof)
+        view = store.for_signals(asof, universe)
         for signal_id in ids:
             _, fn = _REGISTRY[signal_id]
             computed = fn(view, asof)

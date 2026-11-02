@@ -174,6 +174,7 @@ def test_signals_import_only_pitstore() -> None:
         "from eqpit.pit.labels import monthly_returns\n",
         "def f(store):\n    return store.labels().forward_returns()\n",
         "def f(frame):\n    return frame.group_by('a').sum()\n",
+        "def f(frame):\n    return frame.group_by('a', maintain_order=True).agg(col('x').sum())\n",
     ],
 )
 def test_the_import_check_catches_bypasses(tmp_path: Path, source: str) -> None:

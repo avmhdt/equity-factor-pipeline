@@ -19,6 +19,9 @@ from eqpit.store import PitStore
 
 log = structlog.get_logger(__name__)
 
+ALL_ELIGIBLE = 1_000_000
+"""A universe size no market reaches, so every eligible name is kept."""
+
 
 @dataclass(frozen=True)
 class PanelConfig:
@@ -29,12 +32,13 @@ class PanelConfig:
     min_coverage: float = 0.5
     min_names: int = 100
     neutral_mode: Mode = "sector_size_beta"
+    universe: int = 3000
 
 
-def universe_frame(store: PitStore, dates: Sequence[date]) -> pl.DataFrame:
-    """Universe rows on the rebalance dates, top 3,000 by default."""
+def universe_frame(store: PitStore, dates: Sequence[date], size: int = 3000) -> pl.DataFrame:
+    """Universe rows on the rebalance dates: the largest ``size`` names."""
     history = store.labels().universe_history()
-    return history.filter(pl.col("asof").is_in(list(dates)), pl.col("rank") <= 3000).select(
+    return history.filter(pl.col("asof").is_in(list(dates)), pl.col("rank") <= size).select(
         "asof", "security_id", "company_mcap", "mcap", "rank", "exchange", "ff49"
     )
 
@@ -72,8 +76,8 @@ def build_panel(
     """
     rules = config or PanelConfig()
     needed = sorted({*ids, "beta", "size"})
-    raw = compute_signals(store, needed, dates)
-    universe = universe_frame(store, dates)
+    raw = compute_signals(store, needed, dates, rules.universe)
+    universe = universe_frame(store, dates, rules.universe)
     exposures = (
         raw.filter(pl.col("signal").is_in(["beta", "size"]))
         .pivot(on="signal", index=["asof", "security_id"], values="raw")

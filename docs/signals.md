@@ -10,17 +10,17 @@ Month 0 is the month ending at the rebalance date. Spec months `t-12` to `t-2` c
 |---|---|---|---|---|---|
 | `accruals` | quality | -1 | Balance-sheet operating accruals over average total assets, year over year. | Sloan 1996 | Accruals |
 | `asset_growth` | investment | -1 | Year-over-year growth in total assets. | Cooper, Gulen & Schill 2008 | AssetGrowth |
-| `beta` | low_risk | -1 | 252-day market beta against the cap-weighted universe return. | Frazzini & Pedersen 2014 | to verify in M5 |
-| `bm` | value | +1 | Book equity over market equity at the as-of date; negative book equity gives no value. | Fama & French 1992 | BM |
+| `beta` | low_risk | -1 | 252-day market beta against the cap-weighted universe return. | Frazzini & Pedersen 2014 | Beta |
+| `bm` | value | +1 | Book equity over market equity at the as-of date; negative book equity gives no value. | Fama & French 1992 | BMdec |
 | `cfp` | value | +1 | TTM income before extraordinary items plus D&A, over market equity. | Lakonishok, Shleifer & Vishny 1994 | CF |
-| `ebitda_ev` | value | +1 | TTM EBITDA over enterprise value: market equity plus total debt minus cash. | Loughran & Wellman 2011 | to verify in M5 |
+| `ebitda_ev` | value | +1 | TTM EBITDA over enterprise value: market equity plus total debt minus cash. | Loughran & Wellman 2011 | EntMult |
 | `ep` | value | +1 | TTM income before extraordinary items over market equity. | Basu 1977 | EP |
 | `fscore` | quality | +1 | Piotroski's nine points from the last two fiscal years. | Piotroski 2000 | PS |
 | `gp_at` | quality | +1 | TTM gross profit over latest total assets. | Novy-Marx 2013 | GP |
 | `high_52w` | momentum | +1 | Split-adjusted close over its 52-week high. | George & Hwang 2004 | High52 |
 | `ind_mom` | momentum | +1 | Value-weighted FF-49 industry return over the last six months. | Moskowitz & Grinblatt 1999 | IndMom |
-| `inv_at` | investment | -1 | Change in gross PP&E plus inventory over lagged total assets. | Lyandres, Sun & Zhang 2008 | to verify in M5 |
-| `ivol` | low_risk | -1 | Std of daily market-model residuals over the last 21 sessions. | Ang, Hodrick, Xing & Zhang 2006 | to verify in M5 |
+| `inv_at` | investment | -1 | Change in gross PP&E plus inventory over lagged total assets. | Lyandres, Sun & Zhang 2008 | InvestPPEInv |
+| `ivol` | low_risk | -1 | Std of daily market-model residuals over the last 21 sessions. | Ang, Hodrick, Xing & Zhang 2006 | IdioVol3F |
 | `ltr_36_13` | momentum | -1 | Cumulative return over months t-36 to t-13. | De Bondt & Thaler 1985 | LRreversal |
 | `max_ret` | low_risk | -1 | Largest daily return in the latest month. | Bali, Cakici & Whitelaw 2011 | MaxRet |
 | `mom_12_1` | momentum | +1 | Cumulative return over months t-12 to t-2. | Jegadeesh & Titman 1993 | Mom12m |
@@ -28,9 +28,9 @@ Month 0 is the month ending at the rebalance date. Spec months `t-12` to `t-2` c
 | `noa` | investment | -1 | Operating assets minus operating liabilities, over total assets a year earlier. | Hirshleifer, Hou, Teoh & Zhang 2004 | NOA |
 | `nsi` | investment | -1 | Twelve-month log change in split-adjusted shares outstanding. | Pontiff & Woodgate 2008 | ShareIss1Y |
 | `roa` | quality | +1 | Quarterly income before extraordinary items over lagged total assets. | Balakrishnan, Bartov & Faurel 2010 | roaq |
-| `roe` | quality | +1 | Quarterly income before extraordinary items over lagged book equity. | Hou, Xue & Zhang 2015 | to verify in M5 |
+| `roe` | quality | +1 | Quarterly income before extraordinary items over lagged book equity. | Hou, Xue & Zhang 2015 | RoE |
 | `size` | size | -1 | Log market equity at the as-of date. | Banz 1981 | Size |
 | `sp` | value | +1 | TTM sales over market equity. | Barbee, Mukherji & Raines 1996 | SP |
 | `str_1m` | momentum | -1 | Return of the latest month. | Jegadeesh 1990 | STreversal |
-| `sue` | momentum | +1 | Latest year-over-year EPS change over the std of the last eight such changes. | Foster, Olsen & Shevlin 1984; Bernard & Thomas 1989 | to verify in M5 |
-| `vol_12m` | low_risk | -1 | Std of daily returns over 252 sessions. | Ang et al. 2006 | to verify in M5 |
+| `sue` | momentum | +1 | Latest year-over-year EPS change over the std of the last eight such changes. | Foster, Olsen & Shevlin 1984; Bernard & Thomas 1989 | EarningsSurprise |
+| `vol_12m` | low_risk | -1 | Std of daily returns over 252 sessions. | Ang et al. 2006 | RealizedVol |

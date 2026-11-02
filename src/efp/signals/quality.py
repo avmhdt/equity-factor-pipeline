@@ -88,7 +88,7 @@ def _quarterly_return(store: PitStore, asof: date, base: str) -> pl.DataFrame:
         ("income_before_extra", "book_equity"),
         0,
         "Hou, Xue & Zhang 2015",
-        None,
+        "RoE",
     )
 )
 def roe(store: PitStore, asof: date) -> pl.DataFrame:

@@ -32,7 +32,7 @@ def _with_market(store: PitStore, asof: date, days: int) -> pl.DataFrame:
     return _daily(store, asof, days).join(market, on="date", how="inner")
 
 
-@register(SignalSpec("beta", "low_risk", -1, (), 252, "Frazzini & Pedersen 2014", None))
+@register(SignalSpec("beta", "low_risk", -1, (), 252, "Frazzini & Pedersen 2014", "Beta"))
 def beta(store: PitStore, asof: date) -> pl.DataFrame:
     """252-day market beta against the cap-weighted universe return."""
     estimates = (
@@ -48,7 +48,9 @@ def beta(store: PitStore, asof: date) -> pl.DataFrame:
     return to_signal(estimates, pl.col("beta"))
 
 
-@register(SignalSpec("ivol", "low_risk", -1, (), 21, "Ang, Hodrick, Xing & Zhang 2006", None))
+@register(
+    SignalSpec("ivol", "low_risk", -1, (), 21, "Ang, Hodrick, Xing & Zhang 2006", "IdioVol3F")
+)
 def ivol(store: PitStore, asof: date) -> pl.DataFrame:
     """Std of daily market-model residuals over the last 21 sessions."""
     estimates = (
@@ -71,7 +73,7 @@ def ivol(store: PitStore, asof: date) -> pl.DataFrame:
     return to_signal(estimates, residual.clip(0.0).sqrt())
 
 
-@register(SignalSpec("vol_12m", "low_risk", -1, (), 252, "Ang et al. 2006", None))
+@register(SignalSpec("vol_12m", "low_risk", -1, (), 252, "Ang et al. 2006", "RealizedVol"))
 def vol_12m(store: PitStore, asof: date) -> pl.DataFrame:
     """Std of daily returns over 252 sessions."""
     estimates = (

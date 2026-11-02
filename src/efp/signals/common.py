@@ -9,7 +9,6 @@ import polars as pl
 
 from eqpit.store import PitStore
 
-UNIVERSE_SIZE = 3000
 STALE_DAYS = 550
 """A filing older than this at the as-of date is too old to stand for the company today."""
 YEAR_LOW_DAYS = 335
@@ -20,7 +19,7 @@ TTM_HIGH_DAYS = 295
 
 def members(store: PitStore, asof: date) -> pl.DataFrame:
     """Universe rows with the columns signals join on."""
-    return store.universe(asof, UNIVERSE_SIZE).select(
+    return store.universe(asof, store.signal_universe).select(
         "security_id",
         "company_id",
         "ff49",
@@ -51,7 +50,7 @@ def ttm(store: PitStore, asof: date, items: Sequence[str]) -> pl.DataFrame:
     summed = (
         rows.group_by("company_id", "item", maintain_order=True)
         .agg(
-            pl.col("value").sum(),
+            pl.col("value").sort().sum(),
             pl.len().alias("quarters"),
             span.alias("span"),
             pl.col("period_end").max().alias("end"),

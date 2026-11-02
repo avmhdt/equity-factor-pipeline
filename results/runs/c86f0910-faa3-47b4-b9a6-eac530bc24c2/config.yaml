@@ -1,0 +1,6 @@
+construction: ff_2x3_nyse
+factor: osap_ind_mom
+freq: M
+net: false
+provider: sharadar
+universe: top_3000

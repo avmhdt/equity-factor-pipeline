@@ -1,0 +1,12 @@
+{
+  "n_obs": 325,
+  "params": {
+    "construction": "ff_2x3_nyse",
+    "factor": "osap_ep",
+    "freq": "M",
+    "net": false,
+    "provider": "sharadar",
+    "universe": "all_eligible"
+  },
+  "sharpe_annual": 0.43397495840493455
+}

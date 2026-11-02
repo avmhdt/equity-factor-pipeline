@@ -58,7 +58,9 @@ def build_market_daily(
         .sort("date", "security_id")
     )
     built = joined.group_by("date", maintain_order=True).agg(
-        ((pl.col("ret") * pl.col("weight")).sum() / pl.col("weight").sum()).alias("ret"),
+        ((pl.col("ret") * pl.col("weight")).sort().sum() / pl.col("weight").sort().sum()).alias(
+            "ret"
+        ),
         pl.len().cast(pl.Int32).alias("names"),
     )
     return conform(built.with_columns(closes_on(built["date"]).alias("available_at")), MARKET_DAILY)

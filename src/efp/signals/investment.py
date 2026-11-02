@@ -40,7 +40,7 @@ def asset_growth(store: PitStore, asof: date) -> pl.DataFrame:
         ("ppe_gross", "ppe_net", "inventory", "total_assets"),
         0,
         "Lyandres, Sun & Zhang 2008",
-        None,
+        "InvestPPEInv",
     )
 )
 def inv_at(store: PitStore, asof: date) -> pl.DataFrame:

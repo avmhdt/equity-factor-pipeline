@@ -109,7 +109,7 @@ def bucket_returns(assignments: pl.DataFrame, panels: Panels) -> pl.DataFrame:
     )
 
 
-def _annual_characteristics(
+def annual_characteristics(
     store: PitStore, june: date, december: date, panels: Panels
 ) -> pl.DataFrame:
     """Fiscal-year values public at the end of June, per company, in FF definitions.
@@ -179,7 +179,7 @@ def annual_assignments(store: PitStore, panels: Panels) -> pl.DataFrame:
         at_june = panels.universe.filter(pl.col("asof").eq(june)).select(
             "security_id", "company_id", "exchange", pl.col("company_mcap").alias("size")
         )
-        characteristics = _annual_characteristics(store, june, december, panels)
+        characteristics = annual_characteristics(store, june, december, panels)
         sorted_on = at_june.join(characteristics, on="company_id", how="inner")
         holds = months[index + 1 : index + 13]
         periods = pl.DataFrame(

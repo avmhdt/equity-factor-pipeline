@@ -54,6 +54,7 @@ def _daily_action_terms(prices: pl.DataFrame, actions: pl.DataFrame) -> pl.DataF
         pl.when(pl.col("action").is_in(_CASH_ACTIONS))
         .then(pl.col("value"))
         .otherwise(0.0)
+        .sort()
         .sum()
         .alias("cash"),
     )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import replace
 from datetime import date
 from functools import partial
@@ -23,16 +24,28 @@ from efp.config import (
     trial_log_path,
 )
 from efp.doctor import run_doctor
-from efp.evaluation.french import compare, replicate
+from efp.evaluation.french import compare, load_panels, replicate
+from efp.evaluation.multiple_testing import hurdle_table, trial_statistics
+from efp.evaluation.osap import replicate_all
+from efp.evaluation.postpub import per_signal, pooled_regression, summary_rows, tag_periods
 from efp.evaluation.run import evaluate_panel, merge_rows, signals_argument
 from efp.evaluation.survivorship import bias_table, delisted_names_by_year, series_by_mode
+from efp.evaluation.value_gap import decompose
 from efp.explog import TrialRecord, export_log, log_trial, summarize_log
 from efp.logs import configure_logging
-from efp.panel import all_signals, build_panel, read_panel, write_panel
+from efp.panel import ALL_ELIGIBLE, all_signals, build_panel, read_panel, write_panel
 from efp.pipeline.cache import StageCache
 from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
+from efp.reports.figures import post_publication_bars
 from efp.settings import ProviderName, Settings, get_settings
-from eqpit.benchmarks import load_french, pull_french
+from efp.signals.registry import spec_of
+from eqpit.benchmarks import (
+    load_french,
+    load_osap_returns,
+    load_signal_doc,
+    pull_french,
+    pull_osap,
+)
 from eqpit.edgar.xbrl_map import DEFAULT_XBRL_MAP, XbrlMap
 from eqpit.pit.build import build_pit, read_pit_manifest, rebuild_universe
 from eqpit.pit.policy import PitPolicy
@@ -144,11 +157,14 @@ def data_pull_benchmarks(
     settings, experiment = _start(config, log_level)
     root = _data_dir(settings, experiment) / "external"
     for source in (item.strip() for item in sources.split(",")):
-        if source != "french":
-            typer.echo(f"{source}: arrives in M5", err=True)
+        if source == "french":
+            manifest = pull_french(root / "french")
+        elif source == "osap":
+            manifest = pull_osap(root / "osap")
+        else:
+            typer.echo(f"{source}: unknown source", err=True)
             raise typer.Exit(code=2)
-        manifest = pull_french(root / "french")
-        typer.echo(f"french snapshot={manifest.snapshot_id}")
+        typer.echo(f"{source} snapshot={manifest.snapshot_id}")
 
 
 @data_app.command("build-pit")
@@ -234,6 +250,9 @@ def _dates(store: PitStore, experiment: Experiment | None) -> list[date]:
 @signals_app.command("compute")
 def signals_compute(
     only: Annotated[str | None, typer.Option("--only")] = None,
+    all_eligible: Annotated[
+        bool, typer.Option("--all-eligible", help="Every eligible name, for OSAP replication")
+    ] = False,
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
@@ -242,11 +261,15 @@ def signals_compute(
     data_dir = _data_dir(settings, experiment)
     store = PitStore.open(data_dir / "processed" / "pit")
     ids = signals_argument(only) or list(all_signals())
-    panel, dropped = build_panel(store, ids, _dates(store, experiment), panel_config(experiment))
-    write_panel(panel, data_dir / "processed" / "signals")
+    rules = panel_config(experiment)
+    if all_eligible:
+        rules = replace(rules, universe=ALL_ELIGIBLE, neutral_mode="none")
+    panel, dropped = build_panel(store, ids, _dates(store, experiment), rules)
+    write_panel(panel, data_dir / "processed" / ("signals_all" if all_eligible else "signals"))
     provider = str(read_pit_manifest(store.root)["provider"])
     name = experiment.run.name if experiment is not None else provider
-    _write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
+    if not all_eligible:
+        _write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
     typer.echo(f"signals: {panel.height:,} rows, {dropped.height} signal-dates dropped")
 
 
@@ -321,38 +344,21 @@ def _log_series(
     log_trial(record, log_path, log_path.parent / "runs")
 
 
-@app.command()
-def validate(
-    target: Annotated[
-        Literal["french", "osap", "survivorship", "postpub", "value-gap", "jkp"],
-        typer.Argument(),
-    ],
-    config: ConfigOption = None,
-    log_level: LogLevelOption = None,
-) -> None:
-    """Validation tables."""
-    settings, experiment = _start(config, log_level)
-    if target not in ("french", "survivorship"):
-        _pending("M5")
-    data_dir = _data_dir(settings, experiment)
-    root = data_dir / "processed" / "pit"
-    provider = str(read_pit_manifest(root)["provider"])
-    run_name = experiment.run.name if experiment is not None else provider
-    tables = _tables_dir(data_dir, provider, run_name)
-    store = PitStore.open(root)
+def _validate_french(store: PitStore, data_dir: Path, tables: Path, provider: str) -> None:
     log_path = Path("results") / "trial_log.csv"
-    if target == "french":
-        ours = replicate(store)
-        table = compare(ours, load_french(data_dir / "external" / "french"))
-        _write_table(table, tables, "french_replication")
-        if provider in ("sharadar", "wrds"):
-            for (name,), part in ours.group_by(["factor"], maintain_order=True):
-                _log_series(part.sort("month"), str(name), provider, "all_eligible", log_path)
-        typer.echo(table)
-        failed = table.filter(pl.col("passed").eq(False))
-        if not failed.is_empty():
-            raise typer.Exit(code=1)
-        return
+    ours = replicate(store)
+    table = compare(ours, load_french(data_dir / "external" / "french"))
+    _write_table(table, tables, "french_replication")
+    if provider in ("sharadar", "wrds"):
+        for (name,), part in ours.group_by(["factor"], maintain_order=True):
+            _log_series(part.sort("month"), str(name), provider, "all_eligible", log_path)
+    typer.echo(table)
+    if not table.filter(pl.col("passed").eq(False)).is_empty():
+        raise typer.Exit(code=1)
+
+
+def _validate_survivorship(store: PitStore, tables: Path, provider: str) -> None:
+    log_path = Path("results") / "trial_log.csv"
     series = series_by_mode(store)
     _write_table(bias_table(series), tables, "survivorship_bias")
     _write_table(delisted_names_by_year(store), tables, "universe_delisted_by_year")
@@ -360,6 +366,118 @@ def validate(
         for (name, mode), part in series.group_by(["series", "mode"], maintain_order=True):
             _log_series(part.sort("month"), str(name), provider, str(mode), log_path)
     typer.echo(bias_table(series))
+
+
+def _validate_osap(
+    store: PitStore, data_dir: Path, tables: Path, provider: str, only: Sequence[str] | None
+) -> None:
+    root = data_dir / "external" / "osap"
+    panel = read_panel(data_dir / "processed" / "signals_all", only)
+    table, series = replicate_all(
+        panel, load_panels(store), load_signal_doc(root), load_osap_returns(root), store
+    )
+    path = data_dir / "processed" / "osap_series.parquet"
+    if only is not None and path.is_file():
+        kept = pl.read_parquet(path).filter(~pl.col("signal").is_in(list(only)))
+        full = pl.concat([kept, series], how="vertical")
+        existing = tables / "osap_replication.csv"
+        table = merge_rows(pl.read_csv(existing), table, only) if existing.is_file() else table
+    else:
+        full = series
+    _write_table(table, tables, "osap_replication")
+    full.write_parquet(path, compression="zstd")
+    log_path = Path("results") / "trial_log.csv"
+    if provider in ("sharadar", "wrds"):
+        for (name,), part in series.group_by(["signal"], maintain_order=True):
+            _log_series(part.sort("month"), f"osap_{name}", provider, "all_eligible", log_path)
+    typer.echo(f"replicated {table['passed'].sum()} of {table.height} signals at 0.70")
+
+
+def _validate_postpub(data_dir: Path, tables: Path, dev_only: bool) -> None:
+    root = data_dir / "external" / "osap"
+    doc = load_signal_doc(root)
+    targets = pl.DataFrame(
+        {
+            "signal": list(all_signals()),
+            "target": [spec_of(name).osap_target for name in all_signals()],
+        }
+    ).drop_nulls("target")
+    ours = pl.read_parquet(data_dir / "processed" / "osap_series.parquet").join(
+        targets, on="signal"
+    )
+    published = load_osap_returns(root).join(targets, on="target")
+    tagged_ours = tag_periods(ours, doc)
+    tagged_published = tag_periods(published, doc)
+    summary = summary_rows(
+        {
+            "Ours, Sharadar 1998 on": pooled_regression(tagged_ours),
+            "OSAP published series": pooled_regression(tagged_published),
+        }
+    )
+    _write_table(summary, tables, "post_publication")
+    by_signal = per_signal(tagged_published)
+    _write_table(by_signal, tables, "post_publication_by_signal")
+    if not dev_only:
+        post_publication_bars(by_signal, Path("reports") / "figures" / "post_publication.png")
+    typer.echo(summary)
+
+
+def _validate_multiple_testing(tables: Path) -> None:
+    table = hurdle_table(trial_statistics(Path("results") / "trial_log.csv"))
+    _write_table(table, tables, "multiple_testing")
+    typer.echo(
+        f"{table.height} trials: {table['t_over_2'].sum()} over t=2, "
+        f"{table['t_over_3'].sum()} over t=3, {table['bhy_5pct'].sum()} under 5% BHY"
+    )
+
+
+def _validate_value_gap(store: PitStore, data_dir: Path, tables: Path) -> None:
+    table = decompose(
+        store,
+        load_panels(store),
+        read_panel(data_dir / "processed" / "signals", ["bm"]),
+        load_french(data_dir / "external" / "french"),
+        store.labels().forward_returns((1,)),
+    )
+    _write_table(table, tables, "value_gap_decomposition")
+    typer.echo(table)
+
+
+@app.command()
+def validate(
+    target: Annotated[
+        Literal[
+            "french", "osap", "survivorship", "postpub", "value-gap", "multiple-testing", "jkp"
+        ],
+        typer.Argument(),
+    ],
+    signals: Annotated[str | None, typer.Option("--signals", help="OSAP only: these")] = None,
+    config: ConfigOption = None,
+    log_level: LogLevelOption = None,
+) -> None:
+    """Validation tables."""
+    settings, experiment = _start(config, log_level)
+    if target == "jkp":
+        typer.echo("jkp needs D-10 to be yes; the default is no", err=True)
+        raise typer.Exit(code=2)
+    data_dir = _data_dir(settings, experiment)
+    root = data_dir / "processed" / "pit"
+    provider = str(read_pit_manifest(root)["provider"])
+    run_name = experiment.run.name if experiment is not None else provider
+    tables = _tables_dir(data_dir, provider, run_name)
+    store = PitStore.open(root)
+    if target == "french":
+        _validate_french(store, data_dir, tables, provider)
+    elif target == "survivorship":
+        _validate_survivorship(store, tables, provider)
+    elif target == "osap":
+        _validate_osap(store, data_dir, tables, provider, signals_argument(signals))
+    elif target == "postpub":
+        _validate_postpub(data_dir, tables, provider == "edgar_free")
+    elif target == "multiple-testing":
+        _validate_multiple_testing(tables)
+    else:
+        _validate_value_gap(store, data_dir, tables)
 
 
 @app.command()

@@ -1,0 +1,9 @@
+| step | change | months | correlation_with_hml | correlation_with_previous | mean_monthly | mean_monthly_hml |
+|---|---|---|---|---|---|---|
+| hml_ff_convention | NYSE 2x3, June, FY book over December cap, all eligible names | 339 | 0.987105 |  | 0.000633 | 0.000948 |
+| universe_top_3000 | Same, on the top 3,000 | 339 | 0.982472 | 0.993489 | 0.000175 | 0.000948 |
+| breakpoints_all_names | Breakpoints from every name, not NYSE only | 339 | 0.953726 | 0.974605 | 0.000791 | 0.000948 |
+| rebalance_monthly | Re-formed monthly with the current cap | 345 | 0.824256 | 0.772471 | 0.000864 | 0.000966 |
+| pit_latest_quarter | Latest book equity public at each month end, not the last FY | 335 | 0.806652 | 0.991669 | 0.000383 | 0.000982 |
+| decile_spread | VW decile spread on NYSE breakpoints, our research construction | 335 | 0.654513 | 0.856935 | -0.002489 | 0.000982 |
+| neutralized | Sector, size and beta removed | 330 | 0.293864 | 0.520571 | -0.004203 | 0.000937 |

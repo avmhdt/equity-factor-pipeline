@@ -1,4 +1,4 @@
-# Signal registry metadata. A test keeps this equal to the code. OSAP targets are verified in M5.
+# Signal registry metadata. A test keeps this equal to the code. OSAP targets verified against SignalDoc in M5.
 accruals:
   direction: -1
   family: quality
@@ -25,7 +25,7 @@ beta:
   direction: -1
   family: low_risk
   items: []
-  osap_target: null
+  osap_target: Beta
   price_lookback_days: 252
   reference: Frazzini & Pedersen 2014
 bm:
@@ -33,7 +33,7 @@ bm:
   family: value
   items:
   - book_equity
-  osap_target: BM
+  osap_target: BMdec
   price_lookback_days: 0
   reference: Fama & French 1992
 cfp:
@@ -54,7 +54,7 @@ ebitda_ev:
   - short_term_debt
   - long_term_debt
   - cash
-  osap_target: null
+  osap_target: EntMult
   price_lookback_days: 0
   reference: Loughran & Wellman 2011
 ep:
@@ -113,14 +113,14 @@ inv_at:
   - ppe_net
   - inventory
   - total_assets
-  osap_target: null
+  osap_target: InvestPPEInv
   price_lookback_days: 0
   reference: Lyandres, Sun & Zhang 2008
 ivol:
   direction: -1
   family: low_risk
   items: []
-  osap_target: null
+  osap_target: IdioVol3F
   price_lookback_days: 21
   reference: Ang, Hodrick, Xing & Zhang 2006
 ltr_36_13:
@@ -187,7 +187,7 @@ roe:
   items:
   - income_before_extra
   - book_equity
-  osap_target: null
+  osap_target: RoE
   price_lookback_days: 0
   reference: Hou, Xue & Zhang 2015
 size:
@@ -217,13 +217,13 @@ sue:
   family: momentum
   items:
   - eps_diluted
-  osap_target: null
+  osap_target: EarningsSurprise
   price_lookback_days: 0
   reference: Foster, Olsen & Shevlin 1984; Bernard & Thomas 1989
 vol_12m:
   direction: -1
   family: low_risk
   items: []
-  osap_target: null
+  osap_target: RealizedVol
   price_lookback_days: 252
   reference: Ang et al. 2006

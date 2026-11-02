@@ -15,6 +15,7 @@ from eqpit.settings import get_settings
 _HIDDEN_UNIVERSE_COLUMNS = ("delisted_after",)
 _FUNDAMENTAL_KEY = ["company_id", "item", "period_end", "period_type"]
 _YEARS_IN_MEMORY = 4
+DEFAULT_UNIVERSE = 3000
 _VIEW_YEARS = 6
 
 
@@ -80,8 +81,10 @@ class PitStore:
         max_asof: date | None = None,
         labels_allowed: bool = True,
         tables: _Tables | None = None,
+        signal_universe: int = DEFAULT_UNIVERSE,
     ) -> None:
         self.root = root
+        self.signal_universe = signal_universe
         self._max_asof = max_asof
         self._labels_allowed = labels_allowed
         self._tables = tables or _Tables(root)
@@ -95,12 +98,19 @@ class PitStore:
             raise FileNotFoundError(f"no point-in-time tables at {resolved}")
         return cls(resolved)
 
-    def for_signals(self, asof: date) -> PitStore:
+    def for_signals(self, asof: date, universe: int = DEFAULT_UNIVERSE) -> PitStore:
         """The view handed to a signal function: no labels, and no date past ``asof``.
 
-        Reads through a view are remembered, so signals on one date share them.
+        Reads through a view are remembered, so signals on one date share them. ``universe``
+        is how many names the view's signals cover.
         """
-        return PitStore(self.root, max_asof=asof, labels_allowed=False, tables=self._tables)
+        return PitStore(
+            self.root,
+            max_asof=asof,
+            labels_allowed=False,
+            tables=self._tables,
+            signal_universe=universe,
+        )
 
     def _gate(self, asof: date) -> datetime:
         if self._max_asof is not None and asof > self._max_asof:
@@ -278,7 +288,7 @@ class LabelStore:
         return self._read("universe_monthly").sort("asof", "rank")
 
     def month_end_caps(self) -> pl.DataFrame:
-        """``month``, ``security_id`` and ``mcap`` at every month-end session."""
+        """``month``, ``security_id``, ``mcap`` and ``close`` at every month-end session."""
         prices = pl.scan_parquet(self.root / "prices_daily" / "**" / "*.parquet")
         bounds = prices.select(
             pl.col("date").min().alias("first"), pl.col("date").max().alias("last")
@@ -286,7 +296,7 @@ class LabelStore:
         ends = calendar.month_ends(bounds["first"][0], bounds["last"][0])
         return (
             prices.filter(pl.col("date").is_in(ends))
-            .select(pl.col("date").alias("month"), "security_id", "mcap")
+            .select(pl.col("date").alias("month"), "security_id", "mcap", "close")
             .drop_nulls("mcap")
             .sort("month", "security_id")
             .collect()
