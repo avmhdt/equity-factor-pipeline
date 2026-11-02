@@ -15,7 +15,12 @@ from efp.backtest.capacity import capacity_curve
 from efp.backtest.engine import BacktestResult, SimulationConfig
 from efp.backtest.portfolio import target_weights
 from efp.backtest.run import BacktestConfig, Market, frictionless, run_book, summary_row
-from efp.combine.walkforward import CombineConfig, Method, build_composites
+from efp.combine.walkforward import (
+    CombineConfig,
+    Method,
+    build_composites,
+    variant_composites,
+)
 from efp.evaluation.french import compare, load_panels, replicate
 from efp.evaluation.multiple_testing import hurdle_table, trial_statistics
 from efp.evaluation.osap import replicate_all
@@ -236,17 +241,36 @@ def _composite_trial(
 def combine_task(
     panel: pl.DataFrame,
     fwd: pl.DataFrame,
+    ranks: pl.DataFrame,
     methods: Sequence[Method],
     modes: Sequence[str],
-    family_mode: str,
+    headline: tuple[Method, str],
+    sizes: Sequence[int],
     config: CombineConfig,
     target: Path,
     sink: Sink,
     provider: str,
     size: int,
 ) -> dict[str, pl.DataFrame]:
-    """Write every composite to ``target`` and log one trial for each."""
-    built = build_composites(panel, fwd, methods, modes, family_mode, config)
+    """Write every composite to ``target`` and log one trial for each.
+
+    Args:
+        panel: the signal panel.
+        fwd: forward returns.
+        ranks: ``asof``, ``security_id``, ``rank``.
+        methods: composite methods.
+        modes: neutralization modes.
+        headline: the headline method and its mode, which families use too.
+        sizes: smaller universes for the headline composite.
+        config: composite choices.
+        target: output directory.
+        sink: tables and trial log.
+        provider: data provider.
+        size: headline universe size.
+    """
+    method, mode = headline
+    built = build_composites(panel, fwd, methods, modes, mode, config)
+    built |= variant_composites(panel, fwd, ranks, sizes, method, mode, config)
     target.mkdir(parents=True, exist_ok=True)
     labels = fwd.filter(pl.col("h").eq(1)).select("asof", "security_id", "fwd_ret")
     signals = sorted(panel["signal"].unique().to_list())
@@ -262,7 +286,13 @@ def _simulation(config: BacktestConfig, gross_only: bool) -> SimulationConfig:
 
 
 def _backtest_trial(
-    name: str, mode: str, series: pl.DataFrame, config: BacktestConfig, provider: str, net: bool
+    name: str,
+    mode: str,
+    series: pl.DataFrame,
+    simulation: SimulationConfig,
+    config: BacktestConfig,
+    provider: str,
+    net: bool,
 ) -> TrialRecord:
     return TrialRecord(
         "composite",
@@ -272,6 +302,8 @@ def _backtest_trial(
             "gross_leverage": config.gross,
             "execution": mode,
             "aum_usd": config.aum,
+            "max_adv_participation": simulation.max_participation,
+            "cost_scale": simulation.spread_scale,
             "costs": json.loads(json.dumps(asdict(config.costs))) if net else "none",
             "provider": provider,
             "freq": "M",
@@ -282,41 +314,110 @@ def _backtest_trial(
     )
 
 
+def _cost_rows(
+    name: str,
+    scores: pl.DataFrame,
+    market: Market,
+    config: BacktestConfig,
+    sink: Sink,
+    provider: str,
+) -> list[dict[str, object]]:
+    """D-06's sensitivity: every cost scaled together, with and without the ADV cap."""
+    mode = config.headline_execution
+    limit = config.capacity.max_participation
+    rows: list[dict[str, object]] = []
+    for scale in config.impact_multipliers:
+        row: dict[str, object] = {"composite": name, "execution": mode, "cost_multiplier": scale}
+        for label, participation in (("uncapped", None), ("capped", limit)):
+            simulation = SimulationConfig(
+                aum=config.aum,
+                max_participation=participation,
+                spread_scale=scale,
+                impact_scale=scale,
+                borrow_scale=scale,
+                costs=config.costs,
+            )
+            result = run_book(scores, market, mode, simulation, config)
+            summary = summary_row(name, mode, result, config.aum)
+            row[f"{label}_net_mean_annual"] = summary["net_mean_annual"]
+            row[f"{label}_net_sharpe"] = summary["net_sharpe"]
+            if scale != 1.0:
+                sink.record(
+                    _backtest_trial(name, mode, result.series, simulation, config, provider, True)
+                )
+        rows.append(row)
+    return rows
+
+
 def backtest_task(
     composites: Path,
     market: Market,
     config: BacktestConfig,
-    headline: str,
+    names: Sequence[str],
     sink: Sink,
     series_dir: Path,
     provider: str,
     gross_only: bool = False,
 ) -> pl.DataFrame:
-    """Every composite in every execution mode; writes the summary and timing tables."""
+    """Every composite in every execution mode; writes the summary, timing and cost tables.
+
+    Args:
+        composites: directory of composite score files.
+        market: from ``load_market``.
+        config: backtest choices.
+        names: the headline composite, then its universe variants.
+        sink: tables and trial log.
+        series_dir: where monthly series go.
+        provider: data provider.
+        gross_only: remove every cost.
+    """
     series_dir.mkdir(parents=True, exist_ok=True)
     simulation = _simulation(config, gross_only)
+    limit = config.capacity.max_participation
+    capped_run = replace(simulation, max_participation=limit)
     rows: list[dict[str, object]] = []
+    sensitivity: list[dict[str, object]] = []
     for path in sorted(composites.glob("*.parquet")):
         scores = pl.read_parquet(path)
         for mode in config.executions:
             result = run_book(scores, market, mode, simulation, config)
+            capped = run_book(scores, market, mode, capped_run, config)
             result.series.write_parquet(series_dir / f"{path.stem}__{mode}.parquet")
-            rows.append(summary_row(path.stem, mode, result, simulation.aum))
-            sink.record(
-                _backtest_trial(path.stem, mode, result.series, config, provider, not gross_only)
+            row = summary_row(path.stem, mode, result, simulation.aum)
+            capped_row = summary_row(path.stem, mode, capped, simulation.aum)
+            rows.append(
+                row
+                | {
+                    "capped_net_mean_annual": capped_row["net_mean_annual"],
+                    "capped_net_sharpe": capped_row["net_sharpe"],
+                    "capped_turnover_monthly": capped_row["turnover_monthly"],
+                    "capped_worst_net_exposure": capped_row["worst_net_exposure"],
+                }
             )
+            net = not gross_only
+            sink.record(
+                _backtest_trial(path.stem, mode, result.series, simulation, config, provider, net)
+            )
+            sink.record(
+                _backtest_trial(path.stem, mode, capped.series, capped_run, config, provider, net)
+            )
+        if path.stem in names and not gross_only:
+            sensitivity += _cost_rows(path.stem, scores, market, config, sink, provider)
     summary = pl.DataFrame(rows, infer_schema_length=None).sort("composite", "execution")
     write_table(summary, sink.tables, "backtest_summary")
     timing = summary.filter(
-        pl.col("composite").eq(headline) | pl.col("composite").str.starts_with("family_")
+        pl.col("composite").eq(names[0]) | pl.col("composite").str.starts_with("family_")
     ).select(
         "composite",
         "execution",
         pl.col("execution").replace_strict(EXECUTION_LABELS, return_dtype=pl.String).alias("price"),
         "gross_sharpe",
         "net_sharpe",
+        "capped_net_sharpe",
     )
     write_table(timing, sink.tables, "execution_timing")
+    if sensitivity:
+        write_table(pl.DataFrame(sensitivity), sink.tables, "cost_sensitivity")
     return summary
 
 
@@ -341,46 +442,65 @@ def factor_table(store: PitStore, external: Path, provider: str) -> pl.DataFrame
 
 
 def capacity_task(
-    scores: pl.DataFrame,
+    composites: dict[str, pl.DataFrame],
     market: Market,
     factors: pl.DataFrame,
     config: BacktestConfig,
     sink: Sink,
     dev_only: bool,
 ) -> pl.DataFrame:
-    """Capacity of the headline composite at each impact multiplier (FR-24, AC-H-05)."""
+    """Capacity of each composite at each impact multiplier (FR-24, AC-H-05)."""
     mode = config.headline_execution
     base = SimulationConfig(aum=config.aum, costs=config.costs)
-
-    def run(simulation: SimulationConfig) -> BacktestResult:
-        return run_book(scores, market, mode, simulation, config)
-
     rows: list[dict[str, object]] = []
     curves: list[pl.DataFrame] = []
-    target = 0.0
-    for multiplier in config.impact_multipliers:
-        result = capacity_curve(
-            run, factors, replace(base, impact_scale=multiplier), config.capacity
-        )
-        target = result.zero_cost_alpha / 2.0
-        rows.append(
-            {
-                "impact_multiplier": multiplier,
-                "execution": mode,
-                "max_adv_participation": config.capacity.max_participation,
-                "zero_cost_alpha_annual": result.zero_cost_alpha,
-                "capacity_usd": result.capacity,
-                "status": result.status,
-            }
-        )
-        curves.append(result.curve.with_columns(pl.lit(multiplier).alias("impact_multiplier")))
+    for name, scores in composites.items():
+
+        def run(simulation: SimulationConfig, scores: pl.DataFrame = scores) -> BacktestResult:
+            return run_book(scores, market, mode, simulation, config)
+
+        target = 0.0
+        lines: list[pl.DataFrame] = []
+        for multiplier in config.impact_multipliers:
+            result = capacity_curve(
+                run, factors, replace(base, impact_scale=multiplier), config.capacity
+            )
+            target = result.zero_cost_alpha / 2.0
+            rows.append(
+                {
+                    "composite": name,
+                    "impact_multiplier": multiplier,
+                    "execution": mode,
+                    "max_adv_participation": config.capacity.max_participation,
+                    "zero_cost_alpha_annual": result.zero_cost_alpha,
+                    "capacity_usd": result.capacity,
+                    "status": result.status,
+                }
+            )
+            lines.append(
+                result.curve.with_columns(
+                    pl.lit(name).alias("composite"), pl.lit(multiplier).alias("impact_multiplier")
+                )
+            )
+        curve = pl.concat(lines, how="vertical")
+        curves.append(curve)
+        stem = name.removeprefix(next(iter(composites))).lstrip("_")
+        figure = f"capacity_curve_{stem}.png" if stem else "capacity_curve.png"
+        capacity_lines(curve, target, sink.figures / figure, dev_only)
     table = pl.DataFrame(rows, infer_schema_length=None)
-    curve = pl.concat(curves, how="vertical").select(
-        "impact_multiplier", "aum", "net_alpha_annual", "net_mean_annual", "turnover"
-    )
     write_table(table, sink.tables, "capacity")
-    write_table(curve, sink.tables, "capacity_curve")
-    capacity_lines(curve, target, sink.figures / "capacity_curve.png", dev_only)
+    write_table(
+        pl.concat(curves, how="vertical").select(
+            "composite",
+            "impact_multiplier",
+            "aum",
+            "net_alpha_annual",
+            "net_mean_annual",
+            "turnover",
+        ),
+        sink.tables,
+        "capacity_curve",
+    )
     return table
 
 

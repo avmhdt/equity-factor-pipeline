@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from efp.backtest.capacity import CapacityConfig
 from efp.backtest.costs import CostConfig
 from efp.backtest.run import BacktestConfig
-from efp.combine.walkforward import CombineConfig, Method, composite_name
+from efp.combine.walkforward import CombineConfig, Method, composite_name, variant_name
 from efp.evaluation.run import EvaluationConfig
 from efp.panel import PanelConfig
 from eqpit.pit.policy import PitPolicy
@@ -148,11 +148,21 @@ def combine_methods(experiment: Experiment) -> tuple[Method, ...]:
     return tuple(experiment.combination.get("methods", ("equal", "ic_weighted", "ridge")))
 
 
+def headline_method(experiment: Experiment) -> Method:
+    """The method behind the headline composite."""
+    return experiment.combination.get("headline_method", "equal")  # type: ignore[no-any-return]
+
+
 def headline_composite(experiment: Experiment) -> tuple[str, str]:
     """The composite the headline numbers quote: its name and neutralization mode."""
-    section = experiment.combination
-    mode = str(section.get("headline_neutralize", "sector_size_beta"))
-    return composite_name(str(section.get("headline_method", "equal")), mode), mode
+    mode = str(experiment.combination.get("headline_neutralize", "sector_size_beta"))
+    return composite_name(headline_method(experiment), mode), mode
+
+
+def capacity_composites(experiment: Experiment) -> list[str]:
+    """The headline composite, then each universe variant as a sensitivity."""
+    headline, _ = headline_composite(experiment)
+    return [headline, *[variant_name(headline, size) for size in experiment.universe.variants]]
 
 
 def backtest_config(experiment: Experiment) -> BacktestConfig:

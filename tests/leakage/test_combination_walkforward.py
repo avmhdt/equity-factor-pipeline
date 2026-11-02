@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 
 from efp.combine.ic_weighted import trailing_weights
-from efp.combine.walkforward import CombineConfig, combine
+from efp.combine.walkforward import CombineConfig, combine, variant_composites
 from efp.evaluation.ic import rank_ic
 
 MONTHS = pl.date_range(date(2005, 1, 31), date(2015, 12, 31), "1mo", eager=True).to_list()
@@ -119,6 +119,18 @@ def test_ridge_recovers_the_planted_signs(market: tuple[pl.DataFrame, pl.DataFra
     combine(panel, fwd, "ridge", config)
     last = config.diagnostics["fits"][-1]  # type: ignore[index]
     assert last.coefficients[0] > 0 > last.coefficients[1]
+
+
+def test_a_variant_keeps_only_the_largest_names(
+    market: tuple[pl.DataFrame, pl.DataFrame],
+) -> None:
+    panel, fwd = market
+    ranks = panel.filter(pl.col("signal").eq("a")).select(
+        "asof", "security_id", (pl.col("security_id").str.slice(1).cast(pl.Int32) + 1).alias("rank")
+    )
+    built = variant_composites(panel, fwd, ranks, [10], "equal", "none", CombineConfig())
+    scores = built["equal_none_top10"]
+    assert scores.group_by("asof").len()["len"].max() == 10
 
 
 def test_equal_weight_averages_what_is_there() -> None:

@@ -15,11 +15,13 @@ from efp.backtest.run import load_market
 from efp.config import (
     Experiment,
     backtest_config,
+    capacity_composites,
     combine_config,
     combine_methods,
     config_hash,
     evaluation_config,
     headline_composite,
+    headline_method,
     load_config,
     load_xbrl_map,
     panel_config,
@@ -398,9 +400,11 @@ def combine(
     built = combine_task(
         read_panel(data_dir / "processed" / "signals"),
         store.labels().forward_returns((1,)),
+        store.labels().universe_history().select("asof", "security_id", "rank"),
         (method,) if method is not None else combine_methods(experiment),
         tuple(experiment.signals.get("neutralize", ("none", "sector_size_beta"))),
-        family_mode,
+        (headline_method(experiment), family_mode),
+        tuple(experiment.universe.variants),
         combine_config(experiment),
         data_dir / "processed" / "composites",
         sink,
@@ -427,12 +431,11 @@ def backtest(
     if execution is not None:
         rules = replace(rules, executions=(execution,))
     market = load_market(store, _dates(store, experiment), rules)
-    headline, _ = headline_composite(experiment)
     summary = backtest_task(
         data_dir / "processed" / "composites",
         market,
         rules,
-        headline,
+        capacity_composites(experiment),
         sink,
         data_dir / "processed" / "backtest",
         experiment.run.provider,
@@ -448,11 +451,16 @@ def capacity(config: ConfigOption = None, log_level: LogLevelOption = None) -> N
     experiment, data_dir, store, sink = _open_run(settings, loaded)
     rules = backtest_config(experiment)
     rules = replace(rules, executions=(rules.headline_execution,))
-    headline, _ = headline_composite(experiment)
     provider = experiment.run.provider
+    root = data_dir / "processed" / "composites"
+    scores = {
+        name: pl.read_parquet(root / f"{name}.parquet")
+        for name in capacity_composites(experiment)
+        if (root / f"{name}.parquet").is_file()
+    }
     typer.echo(
         capacity_task(
-            pl.read_parquet(data_dir / "processed" / "composites" / f"{headline}.parquet"),
+            scores,
             load_market(store, _dates(store, experiment), rules),
             factor_table(store, data_dir / "external", provider),
             rules,

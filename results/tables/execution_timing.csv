@@ -1,0 +1,29 @@
+composite,execution,price,gross_sharpe,net_sharpe
+equal_sector_size_beta,close,same close,1.022471,-1.630680
+equal_sector_size_beta,next_close,next close,0.944354,-1.694191
+equal_sector_size_beta,next_open,next open,1.004651,-1.652833
+equal_sector_size_beta,next_vwap_proxy,"next-day VWAP proxy, (O+H+L+C)/4",0.992734,-1.668027
+family_investment_sector_size_beta,close,same close,1.132890,-1.583074
+family_investment_sector_size_beta,next_close,next close,1.149355,-1.651512
+family_investment_sector_size_beta,next_open,next open,1.142254,-1.610407
+family_investment_sector_size_beta,next_vwap_proxy,"next-day VWAP proxy, (O+H+L+C)/4",1.151920,-1.636490
+family_low_risk_sector_size_beta,close,same close,0.487657,-2.355667
+family_low_risk_sector_size_beta,next_close,next close,0.422115,-2.394184
+family_low_risk_sector_size_beta,next_open,next open,0.478514,-2.367618
+family_low_risk_sector_size_beta,next_vwap_proxy,"next-day VWAP proxy, (O+H+L+C)/4",0.477206,-2.370594
+family_momentum_sector_size_beta,close,same close,0.546025,-2.208975
+family_momentum_sector_size_beta,next_close,next close,0.480970,-2.319642
+family_momentum_sector_size_beta,next_open,next open,0.527450,-2.226788
+family_momentum_sector_size_beta,next_vwap_proxy,"next-day VWAP proxy, (O+H+L+C)/4",0.508382,-2.291314
+family_quality_sector_size_beta,close,same close,0.929352,-1.144453
+family_quality_sector_size_beta,next_close,next close,0.889457,-1.178063
+family_quality_sector_size_beta,next_open,next open,0.925777,-1.145975
+family_quality_sector_size_beta,next_vwap_proxy,"next-day VWAP proxy, (O+H+L+C)/4",0.929858,-1.149512
+family_size_sector_size_beta,close,same close,0.083391,-1.483034
+family_size_sector_size_beta,next_close,next close,0.070668,-1.497365
+family_size_sector_size_beta,next_open,next open,0.078893,-1.515827
+family_size_sector_size_beta,next_vwap_proxy,"next-day VWAP proxy, (O+H+L+C)/4",0.050375,-1.541491
+family_value_sector_size_beta,close,same close,0.631627,-1.450863
+family_value_sector_size_beta,next_close,next close,0.576586,-1.488236
+family_value_sector_size_beta,next_open,next open,0.603232,-1.471561
+family_value_sector_size_beta,next_vwap_proxy,"next-day VWAP proxy, (O+H+L+C)/4",0.605115,-1.475347

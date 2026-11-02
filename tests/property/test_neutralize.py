@@ -84,3 +84,11 @@ def test_row_order_is_kept() -> None:
     frame = cross_section(6).with_row_index("order")
     result = neutralize(frame, "z", "sector_size_beta")
     assert result["order"].to_list() == frame["order"].to_list()
+
+
+def test_a_signal_the_exposures_span_is_left_out() -> None:
+    frame = cross_section(1)
+    means = frame.group_by("ff49", maintain_order=True).agg(pl.col("z").mean().alias("level"))
+    spanned = frame.join(means, on="ff49").with_columns(pl.col("level").alias("z"))
+    result = neutralize(spanned, "z", "sector_size_beta")
+    assert result["z_neutral"].null_count() == result.height

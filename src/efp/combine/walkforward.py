@@ -122,6 +122,42 @@ def family_name(family: str, mode: str) -> str:
     return f"family_{family}_{mode}"
 
 
+def variant_name(headline: str, size: int) -> str:
+    """Name of the headline composite on a smaller universe."""
+    return f"{headline}_top{size}"
+
+
+def variant_composites(
+    panel: pl.DataFrame,
+    fwd: pl.DataFrame,
+    ranks: pl.DataFrame,
+    sizes: Sequence[int],
+    method: Method,
+    mode: str,
+    config: CombineConfig,
+) -> dict[str, pl.DataFrame]:
+    """The headline method and mode, on the largest ``size`` names at each date.
+
+    Args:
+        panel: the signal panel.
+        fwd: forward returns.
+        ranks: ``asof``, ``security_id``, ``rank``.
+        sizes: universe sizes.
+        method: composite method.
+        mode: neutralization mode.
+        config: composite choices.
+    """
+    chosen = replace(config, score=SCORES[mode], diagnostics={})
+    built: dict[str, pl.DataFrame] = {}
+    for size in sizes:
+        members = ranks.filter(pl.col("rank") <= size).select("asof", "security_id")
+        subset = panel.join(members, on=["asof", "security_id"], how="semi")
+        built[variant_name(composite_name(method, mode), size)] = combine(
+            subset, fwd, method, chosen
+        )
+    return built
+
+
 def build_composites(
     panel: pl.DataFrame,
     fwd: pl.DataFrame,

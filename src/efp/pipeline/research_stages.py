@@ -20,10 +20,12 @@ from efp.backtest.run import BacktestConfig, Market, load_market
 from efp.config import (
     Experiment,
     backtest_config,
+    capacity_composites,
     combine_config,
     combine_methods,
     evaluation_config,
     headline_composite,
+    headline_method,
     panel_config,
 )
 from efp.evaluation.run import TABLE_KEYS, evaluate_panel
@@ -287,7 +289,10 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
     experiment = plan.experiment
     methods = combine_methods(experiment)
     modes = tuple(experiment.signals.get("neutralize", ("none", "sector_size_beta")))
-    headline, family_mode = headline_composite(experiment)
+    _, family_mode = headline_composite(experiment)
+    method = headline_method(experiment)
+    names = capacity_composites(experiment)
+    sizes = tuple(experiment.universe.variants)
     rules = combine_config(experiment)
     config = backtest_config(experiment)
     size = experiment.universe.size
@@ -297,9 +302,11 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
         built = combine_task(
             _panels(inputs, plan.ids),
             store.labels().forward_returns((1,)),
+            store.labels().universe_history().select("asof", "security_id", "rank"),
             methods,
             modes,
-            family_mode,
+            (method, family_mode),
+            sizes,
             rules,
             path / "composites",
             plan.sink(path),
@@ -317,14 +324,19 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
             inputs["composites"] / "composites",
             market(inputs),
             config,
-            headline,
+            names,
             plan.sink(path),
             path / "series",
             plan.provider,
         ).height
 
     def capacity(path: Path, inputs: Mapping[str, Path]) -> int:
-        scores = pl.read_parquet(inputs["composites"] / "composites" / f"{headline}.parquet")
+        root = inputs["composites"] / "composites"
+        scores = {
+            name: pl.read_parquet(root / f"{name}.parquet")
+            for name in names
+            if (root / f"{name}.parquet").is_file()
+        }
         factors = factor_table(_store(inputs), plan.external, plan.provider)
         return capacity_task(
             scores,
@@ -343,7 +355,7 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
 
     settings = {
         "backtest": asdict(config),
-        "headline": headline,
+        "composites": names,
         "methods": list(methods),
         "modes": list(modes),
     }
@@ -353,7 +365,13 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
         Stage(
             "composites",
             composites,
-            {"rules": asdict(rules), "methods": list(methods), "modes": list(modes)},
+            {
+                "rules": asdict(rules),
+                "methods": list(methods),
+                "modes": list(modes),
+                "sizes": list(sizes),
+                "headline": method,
+            },
             ("pit", *panels),
             modules=trading,
         ),
