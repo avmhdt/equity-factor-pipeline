@@ -68,10 +68,11 @@ def build_universe(
         ["asof", "company_mcap", "security_id"], descending=[False, True, False]
     ).with_columns(pl.int_range(1, pl.len() + 1, dtype=pl.Int32).over("asof").alias("rank"))
     later = delistings.select("security_id", pl.col("delist_date").alias("delisted_after"))
-    built = ranked.join(later, on="security_id", how="left").with_columns(
+    joined = ranked.join(later, on="security_id", how="left")
+    built = joined.with_columns(
         pl.when(pl.col("delisted_after") > pl.col("asof")).then(pl.col("delisted_after")),
         (pl.col("rank") <= 1000).alias("in_top_1000"),
         (pl.col("rank") <= 3000).alias("in_top_3000"),
-        closes_on(ranked.join(later, on="security_id", how="left")["asof"]).alias("available_at"),
+        closes_on(joined["asof"]).alias("available_at"),
     )
     return conform(built, UNIVERSE_MONTHLY).sort("asof", "rank")

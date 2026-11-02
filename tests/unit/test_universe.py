@@ -10,6 +10,7 @@ from market_fixture import delistings, ends, prices, securities
 from eqpit.calendar import closes_on
 from eqpit.pit.policy import PitPolicy
 from eqpit.pit.universe import build_universe
+from eqpit.store import PitStore
 
 JANUARY = date(2024, 1, 31)
 FEBRUARY = date(2024, 2, 29)
@@ -46,6 +47,11 @@ def test_ranks_run_from_one_by_market_cap() -> None:
 
 def test_available_at_is_the_as_of_close() -> None:
     table = universe()
+    assert table["available_at"].to_list() == closes_on(table["asof"]).to_list()
+
+
+def test_available_at_stays_with_its_row_across_many_months(small_store: PitStore) -> None:
+    table = pl.read_parquet(small_store.root / "universe_monthly" / "**" / "*.parquet")
     assert table["available_at"].to_list() == closes_on(table["asof"]).to_list()
 
 
