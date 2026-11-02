@@ -22,6 +22,8 @@ Accruals is the exception. Its IC is flat in this sample, and the replication fa
 
 As a family, an equal-weight neutralized book has a gross Sharpe of {{family.quality.gross_sharpe}} and alpha of {{family.quality.gross_alpha}} (t {{family.quality.gross_alpha_t}}), and it loads on RMW at {{family.quality.gross_rmw}}, as it should. It replaces only {{family.quality.turnover}} of its book each month. Net of costs at {{spec.aum}} its Sharpe is still {{family.quality.net_sharpe}} with no trade cap and {{family.quality.capped_sharpe}} with one, the best of the families but below zero.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is {{spread.table.family.quality.net_sharpe}} with no cap and {{spread.table.family.quality.capped_sharpe}} with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_quality.png)
 
 ![IC by horizon](../figures/decay_quality.png)

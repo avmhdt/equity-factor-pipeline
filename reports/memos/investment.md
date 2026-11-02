@@ -23,6 +23,8 @@ Yet the family book has the highest gross Sharpe of any family, 1.15, with alpha
 
 Net of costs at $100M the Sharpe is -1.64 with no trade cap and -0.76 with one.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.17 with no cap and -0.25 with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_investment.png)
 
 ![IC by horizon](../figures/decay_investment.png)

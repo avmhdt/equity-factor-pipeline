@@ -42,6 +42,7 @@ Spec defaults stand for D-03, D-05, D-06 except borrow, D-08, D-10, D-13 and D-1
 | Decision | Was | Now |
 |---|---|---|
 | D-06 borrow cost | Flat 25 bps/yr | 0.25%/yr top 500, 1.0%/yr ranks 501–1,000, 5.0%/yr otherwise, shared with `stat-arb-pairs` |
+| D-06 spread model | Corwin-Schultz alone | Abdi-Ranaldo and the size-bucket table reported beside it, disclosed as run after the net failure. Corwin-Schultz stays the headline |
 
 ## Reference hardware (NFR targets)
 
@@ -161,6 +162,15 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | M7 | D-08 and D-10 | Defaults stand: git install only, no JKP comparison | FR-33 and FR-34 are Could. D-10 says to revisit only after M6's exit criteria pass; the owner hasn't changed it |
 | M7 | Coverage | 94% for `efp`, 99% for `eqpit`, against 85% | |
 | M7 | AC-W-12 and NFR-01 | A no-op headline rebuild took 8 seconds with 48 of 48 stages cached, 0.2% of the 74-minute run and well under NFR-01's 2 minutes. It left a clean tree and added no trials | The cache test runs a build of about 20 seconds, where start-up and report time dwarf 5%, so it allows a fixed 10 seconds. It failed once on CI at 2.1 seconds against a 2.04-second limit. The ratio is measured here instead |
+| D-06 rerun | Why it ran | Owner's decision on 2026-11-02, after the Corwin-Schultz net failure. Run beside Corwin-Schultz, which stays the headline. Thresholds didn't change and nothing was tuned | The reading rule was committed before any result: a model's net result counts only as far as its estimates match published spreads for the same stocks |
+| D-06 rerun | Size-bucket values | The spec names the option but gives none. Up to $5B: SEC staff 2013, Table 4 mean relative effective spread weighted by Table 1 ticker counts, halved. Above $5B: Hagstromer's 1.47 bps, S&P 500, late 2015 | Sources were read and the table fixed before it produced any result. Mean over median, because a cost is an expectation. The 1.47 is on the half-spread convention: that paper scales quoted spreads by twice the midpoint "for comparability" |
+| D-06 rerun | Abdi-Ranaldo form | The two-day corrected version from the paper: negative two-day squares go to zero, then roots are averaged. 20 days, as for Corwin-Schultz | Eq. 11 of the paper. It reports this and the monthly form as the two better treatments of negatives |
+| D-06 rerun | The check | Corwin-Schultz reads 18.5x and Abdi-Ranaldo 21x published spreads on late-2015 large caps, 7.9x and 8.6x at $2-5B, and both read low under $100M | Abdi-Ranaldo isn't an improvement here. The size table's match is by construction, so it isn't independent evidence |
+| D-06 rerun | Result | Published spreads cut the headline's spread cost from 11.1% to 2.5% a year, and it still loses money: Sharpe -1.18 uncapped, -0.19 capped. The top 1,000 on the size table is about zero: -0.05 and 0.07 | Impact is 32% a year on the headline under every model. The top 1,000 cell is the best of 3 models across 8 books, chosen after the fact, and it's negative from 2010. It is the one cell with a capacity estimate, about $20M |
+| D-06 rerun | 2010 cut | Results are also reported from 2010 | Both size-table sources describe the 2010s, so the full sample understates early spreads |
+| D-06 rerun | Trials | 32 rows, marked in `x_note`. Corwin-Schultz rows weren't repeated | Every run counts toward N, including ones made because a result disappointed |
+| D-06 rerun | Next assumption | Impact wasn't tested | It's the largest cost in the headline book under every model. D-06 keeps the coefficient, and no published check was made. This rerun doesn't support a claim about what a better execution model would earn |
+| D-06 rerun | AC-W-04 again | Passed on a fresh clone of `af7d7a8`: 49 of 49 stages in 81.3 minutes, only `pipeline_timings` changed, no new trial rows | The `spread_models` stage adds about 7 minutes. Same machine as before |
 
 ## Known limits on the free path
 

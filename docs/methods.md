@@ -57,6 +57,13 @@ D-06 fixes these as modelling assumptions.
 | Impact | `k * daily vol * sqrt(trade / ADV)` with `k = 1.0`, 20-day windows |
 | Borrow | 0.25% a year for the top 500, 1.0% to rank 1,000, 5.0% beyond |
 
+Two other spread models were run after the Corwin-Schultz result failed, at the owner's request. Headline figures don't use them.
+
+- **Abdi-Ranaldo:** the two-day corrected estimator over 20 days. Each two-day squared spread `4 (c_t - m_t) (c_t - m_t+1)`, with `c` the log close and `m` the log mid-range, goes to zero if negative, then the roots are averaged and halved.
+- **Size table:** published effective spreads by market cap. Up to $5B it uses SEC staff's 2013 mean relative effective spreads by cap band, weighted across price bands by their ticker counts and halved: 81.5, 29.1, 15.0, 8.7, 5.3 and 3.5 bps. Above $5B it uses Hagstromer's 1.47 bps for S&P 500 stocks in late 2015. The 2 bp floor applies to all three models.
+
+`spread_models.csv` has each book under each model, with and without the cap, for the full sample and from 2010. `spread_model_capacity.csv` has capacity at each impact multiplier. `spread_model_checks.csv` compares each model with the published figures for the same stocks.
+
 Costs apply to the trade in every name, including one leaving the book. A name with no inputs pays the spread floor and the top borrow rate.
 
 Every composite runs uncapped, as FR-23 specifies, and capped at 10% of ADV, as FR-24 specifies for capacity. A capped book misses trades and stops being dollar neutral.

@@ -30,6 +30,7 @@ _IGNORED = (
     r"\(?\b(?:19|20)\d{2}\)",  # citations
     r"\bFF-?\d+\b",  # factor and industry names
     r"\bO\+H\+L\+C\b",
+    r"\$2-5B|\$500M-1B|\$100-250M|(?:[Uu]nder|up to) \$\d+[MB]",  # published band names
 )
 _NUMBER = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?")
 

@@ -154,3 +154,66 @@ def test_book_figures_draw(tmp_path: Path) -> None:
     figures.french_scatter(joined, tmp_path / "scatter.png")
     figures.french_cumulative(joined, tmp_path / "cumulative.png")
     assert len(list(tmp_path.glob("*.png"))) == 5
+
+
+def test_spread_figure_draws(tmp_path: Path) -> None:
+    models = ("corwin_schultz", "abdi_ranaldo", "size_bucket")
+    checks = pl.DataFrame(
+        {
+            "model": [model for model in models for _ in range(2)],
+            "band": ["<$100M", "top 500, late 2015"] * 3,
+            "benchmark_bps": [80.0, 1.5] * 3,
+            "estimate_bps": [50.0, 20.0, 60.0, 25.0, 80.0, 1.5],
+        }
+    )
+    table = pl.DataFrame(
+        {
+            "spread_model": [model for model in models for _ in range(2)],
+            "period": ["full", "2010_on"] * 3,
+            "net_sharpe": [-1.0] * 6,
+            "capped_net_sharpe": [-0.5] * 6,
+        }
+    )
+    figures.spread_model_bars(checks, table, tmp_path / "spreads.png")
+    assert (tmp_path / "spreads.png").stat().st_size > 1000
+
+
+def test_spread_numbers_name_each_model(tmp_path: Path) -> None:
+    write_table(
+        pl.DataFrame(
+            {
+                "composite": [HEADLINE],
+                "spread_model": ["size_bucket"],
+                "period": ["2010_on"],
+                "net_sharpe": [-1.18],
+                "capped_net_sharpe": [-0.19],
+                "net_mean_annual": [-0.225],
+                "capped_net_mean_annual": [-0.027],
+                "net_alpha_annual": [-0.245],
+                "net_alpha_t": [-5.4],
+                "capped_alpha_annual": [-0.036],
+                "capped_alpha_t": [-1.9],
+                "spread_cost_annual": [0.025],
+                "impact_cost_annual": [0.32],
+            }
+        ),
+        tmp_path,
+        "spread_models",
+    )
+    write_table(
+        pl.DataFrame(
+            {
+                "composite": [f"{HEADLINE}_top1000", HEADLINE],
+                "spread_model": ["size_bucket", "abdi_ranaldo"],
+                "impact_multiplier": [1.0, 2.0],
+                "capacity_usd": [1.99e7, None],
+                "status": ["estimated", "below grid min"],
+            }
+        ),
+        tmp_path,
+        "spread_model_capacity",
+    )
+    numbers = build_numbers(tmp_path, tmp_path / "no_log.csv", HEADLINE, "next_vwap_proxy")
+    assert numbers["spread.table.headline.recent.capped_sharpe"] == "-0.19"
+    assert numbers["spread.table.top1000.capacity_1"] == "about $20M"
+    assert numbers["spread.ar.headline.capacity_2"] == "below the grid"

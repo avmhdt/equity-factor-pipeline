@@ -20,6 +20,13 @@ from efp.backtest.engine import (
 from efp.backtest.execution import holding_returns, next_session_rows, timing_factors
 from efp.backtest.portfolio import target_weights
 from efp.backtest.run import frictionless, summary_row
+from efp.backtest.spread_study import benchmark_checks
+from efp.backtest.spread_table import (
+    BAND_NAMES,
+    LARGE_CAP_HALF_SPREAD_BPS,
+    band_half_spreads_bps,
+    size_bucket_half_spread,
+)
 
 ENDS = [date(2020, 1, 31), date(2020, 2, 28), date(2020, 3, 31), date(2020, 4, 30)]
 NAMES = [f"s{index}" for index in range(10)]
@@ -321,3 +328,134 @@ def test_replace_keeps_a_config_frozen() -> None:
     config = SimulationConfig()
     assert replace(config, aum=1.0).aum == 1.0
     assert config.aum == 1.0e8
+
+
+def _ohlc(rows: int = 40) -> pl.DataFrame:
+    rng = np.random.default_rng(8)
+    start = date(2020, 1, 1)
+    dates = [date.fromordinal(start.toordinal() + index) for index in range(rows)]
+    middle = 50.0 * np.exp(rng.normal(0.0, 0.01, rows).cumsum())
+    return pl.DataFrame(
+        {
+            "security_id": ["a"] * rows,
+            "date": dates,
+            "high": middle * 1.01,
+            "low": middle * 0.99,
+            "close": middle * (1.0 + rng.uniform(-0.009, 0.009, rows)),
+            "ret": rng.normal(0.0, 0.01, rows),
+            "dollar_volume": [1.0e6] * rows,
+            "split_factor": [1.0] * rows,
+            "mcap": [3.0e9] * rows,
+        }
+    )
+
+
+def test_abdi_ranaldo_matches_a_hand_calculation() -> None:
+    prices = _ohlc()
+    end = prices["date"][29]
+    row = trading_inputs(prices, [end], CostConfig(floor_bps=0.0, spread_model="abdi_ranaldo")).row(
+        0, named=True
+    )
+    close = np.log(prices["close"].to_numpy())
+    middle = (np.log(prices["high"].to_numpy()) + np.log(prices["low"].to_numpy())) / 2.0
+    squares = 4.0 * (close[:-1] - middle[:-1]) * (close[:-1] - middle[1:])
+    daily = np.sqrt(np.maximum(squares, 0.0))
+    expected = daily[9:29].mean() / 2.0
+    assert row["half_spread"] == pytest.approx(expected, rel=1e-9)
+
+
+def test_abdi_ranaldo_recovers_a_known_spread() -> None:
+    rng = np.random.default_rng(21)
+    days, spread = 4000, 0.02
+    steps = 78
+    moves = (
+        rng.normal(0.0, 0.01 / np.sqrt(steps), days * steps).reshape(days, steps).cumsum(axis=None)
+    )
+    mid = moves.reshape(days, steps)
+    sides = rng.choice([-1.0, 1.0], size=(days, steps))
+    trades = mid + sides * spread / 2.0
+    frame = pl.DataFrame(
+        {
+            "security_id": ["a"] * days,
+            "date": [date.fromordinal(730000 + index) for index in range(days)],
+            "high": np.exp(trades.max(axis=1)),
+            "low": np.exp(trades.min(axis=1)),
+            "close": np.exp(trades[:, -1]),
+            "ret": [0.0] * days,
+            "dollar_volume": [1.0] * days,
+            "split_factor": [1.0] * days,
+            "mcap": [1.0] * days,
+        }
+    )
+    config = CostConfig(floor_bps=0.0, spread_model="abdi_ranaldo", vol_days=3000)
+    row = trading_inputs(frame, [frame["date"][-1]], config).row(0, named=True)
+    assert row["half_spread"] == pytest.approx(spread / 2.0, rel=0.35)
+
+
+def test_abdi_ranaldo_sees_no_later_price() -> None:
+    prices = _ohlc()
+    end = prices["date"][29]
+    config = CostConfig(spread_model="abdi_ranaldo")
+    later = prices.with_columns(
+        pl.when(pl.col("date") > end).then(pl.col("close") * 3.0).otherwise(pl.col("close")),
+        pl.when(pl.col("date") > end).then(pl.col("high") * 3.0).otherwise(pl.col("high")),
+    )
+    assert trading_inputs(later, [end], config).row(0) == trading_inputs(prices, [end], config).row(
+        0
+    )
+
+
+def test_the_size_table_follows_its_sources() -> None:
+    values = band_half_spreads_bps()
+    assert values[0] == pytest.approx(81.0, abs=2.0)
+    assert list(values) == sorted(values, reverse=True)
+    assert values[-1] == pytest.approx(3.4, abs=0.2)
+
+
+@pytest.mark.parametrize(
+    ("mcap", "band"),
+    [(5.0e7, 0), (1.5e8, 1), (3.0e8, 2), (7.0e8, 3), (1.5e9, 4), (3.0e9, 5)],
+)
+def test_a_cap_lands_in_its_band(mcap: float, band: int) -> None:
+    frame = pl.DataFrame({"mcap": [mcap]})
+    found = frame.select(size_bucket_half_spread(pl.col("mcap"))).item()
+    assert found == pytest.approx(band_half_spreads_bps()[band] / 10_000.0)
+
+
+def test_a_large_cap_gets_the_published_figure_and_the_floor_holds() -> None:
+    frame = pl.DataFrame({"mcap": [2.0e11]})
+    found = frame.select(size_bucket_half_spread(pl.col("mcap"))).item()
+    assert found == pytest.approx(LARGE_CAP_HALF_SPREAD_BPS / 10_000.0)
+    prices = _ohlc().with_columns(pl.lit(2.0e11).alias("mcap"))
+    end = prices["date"][29]
+    row = trading_inputs(prices, [end], CostConfig(spread_model="size_bucket")).row(0, named=True)
+    assert row["half_spread"] == pytest.approx(2.0 / 10_000.0)
+
+
+def test_the_headline_spread_stays_corwin_schultz() -> None:
+    prices = _ohlc()
+    end = prices["date"][29]
+    assert CostConfig().spread_model == "corwin_schultz"
+    assert trading_inputs(prices, [end], CostConfig()).row(0) != trading_inputs(
+        prices, [end], CostConfig(spread_model="abdi_ranaldo")
+    ).row(0)
+
+
+def test_benchmark_checks_cover_every_band_and_the_large_caps() -> None:
+    rows = [
+        (date(2013, 6, 28), "a", "abdi_ranaldo", 0.001, 20.0, 3.0e9, 100),
+        (date(2015, 12, 31), "b", "abdi_ranaldo", 0.0003, 50.0, 2.0e11, 10),
+        (date(2013, 6, 28), "c", "abdi_ranaldo", 0.05, 1.0, 3.0e9, 200),
+    ]
+    frame = pl.DataFrame(
+        rows,
+        schema=["asof", "security_id", "model", "half_spread", "close", "mcap", "rank"],
+        orient="row",
+    )
+    table = benchmark_checks(frame)
+    assert table.height == len(BAND_NAMES) + 1
+    band = table.filter(pl.col("band").eq("$2-5B")).row(0, named=True)
+    assert band["estimate_bps"] == pytest.approx(10.0)
+    assert band["stock_months"] == 1
+    top = table.filter(pl.col("band").str.starts_with("top")).row(0, named=True)
+    assert top["ratio"] == pytest.approx(3.0 / LARGE_CAP_HALF_SPREAD_BPS)

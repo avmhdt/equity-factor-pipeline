@@ -40,6 +40,7 @@ PRICE_COLUMNS = (
     "dollar_volume",
     "ret",
     "split_factor",
+    "mcap",
 )
 WARMUP_DAYS = 60
 

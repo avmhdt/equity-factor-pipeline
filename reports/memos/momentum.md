@@ -26,6 +26,8 @@ Industry momentum has no neutralized figure, on purpose. It is one number per in
 
 As a family, an equal-weight neutralized book has a gross Sharpe of 0.73 and alpha of 8.5% (t 4.8). It replaces 48% of its book each month, so it pays 53.8% a year in costs at $100M and its net Sharpe is -2.26, or -1.43 with the trade cap.
 
+Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.74 with no cap and -0.74 with one. That's a follow-up, not a test, and the result is still below zero.
+
 ![Monthly IC](../figures/ic_momentum.png)
 
 ![IC by horizon](../figures/decay_momentum.png)

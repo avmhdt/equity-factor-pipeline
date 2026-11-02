@@ -46,6 +46,7 @@ from efp.research import (
     osap_task,
     postpub_task,
     rebalance_dates,
+    spread_model_task,
     survivorship_task,
     value_gap_task,
 )
@@ -355,6 +356,20 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
             plan.provider not in (*LICENSED, "synthetic"),
         ).height
 
+    def spread_models(path: Path, inputs: Mapping[str, Path]) -> int:
+        store = _store(inputs)
+        return spread_model_task(
+            store,
+            plan.dates(store),
+            inputs["composites"] / "composites",
+            names,
+            factor_table(store, plan.external, plan.provider),
+            config,
+            plan.sink(path),
+            plan.provider,
+            plan.provider not in (*LICENSED, "synthetic"),
+        ).height
+
     def attribution(path: Path, inputs: Mapping[str, Path]) -> int:
         factors = factor_table(_store(inputs), plan.external, plan.provider)
         return attribution_task(
@@ -386,6 +401,7 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
         Stage("backtest", backtest, settings, ("pit", "composites"), modules=trading),
         Stage("capacity", capacity, settings, ("pit", "composites"), modules=trading),
         Stage("attribution", attribution, settings, ("pit", "backtest"), modules=trading),
+        Stage("spread_models", spread_models, settings, ("pit", "composites"), modules=trading),
     ]
 
 
@@ -419,7 +435,8 @@ def research_stages(experiment: Experiment, external: Path, log_path: Path) -> l
         stage.name
         for stage in stages
         if stage.name.startswith("evaluate_")
-        or stage.name in ("french", "survivorship", "osap", "composites", "backtest")
+        or stage.name
+        in ("french", "survivorship", "osap", "composites", "backtest", "spread_models")
     )
     stages.append(Stage("multiple_testing", testing, None, logged, modules=RESEARCH_MODULES))
     return stages

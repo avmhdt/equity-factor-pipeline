@@ -5,11 +5,16 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
 import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
+from efp.backtest.spread_table import size_bucket_half_spread
+
+SpreadModel = Literal["corwin_schultz", "abdi_ranaldo", "size_bucket"]
+SPREAD_MODELS: tuple[SpreadModel, ...] = ("corwin_schultz", "abdi_ranaldo", "size_bucket")
 _SQRT2 = math.sqrt(2.0)
 _DENOMINATOR = 3.0 - 2.0 * _SQRT2
 
@@ -25,6 +30,7 @@ class CostConfig:
         vol_days: window for daily volatility.
         borrow_tiers: ``(max_rank, rate per year)``, rates in percent, ascending rank.
         borrow_rest: rate per year in percent for every other rank.
+        spread_model: half-spread estimator; D-06 sets Corwin-Schultz for headline results.
     """
 
     floor_bps: float = 2.0
@@ -33,6 +39,7 @@ class CostConfig:
     vol_days: int = 20
     borrow_tiers: tuple[tuple[int, float], ...] = ((500, 0.25), (1000, 1.0))
     borrow_rest: float = 5.0
+    spread_model: SpreadModel = "corwin_schultz"
 
 
 def corwin_schultz(high: NDArray[np.float64], low: NDArray[np.float64]) -> float:
@@ -55,6 +62,29 @@ def corwin_schultz(high: NDArray[np.float64], low: NDArray[np.float64]) -> float
     return float(np.maximum(spreads, 0.0).mean())
 
 
+def _corwin_schultz_spread() -> pl.Expr:
+    squared = (pl.col("_high") / pl.col("_low")).log() ** 2
+    two_high = pl.max_horizontal(pl.col("_high"), pl.col("_high").shift(1).over("security_id"))
+    two_low = pl.min_horizontal(pl.col("_low"), pl.col("_low").shift(1).over("security_id"))
+    gamma = (two_high / two_low).log() ** 2
+    beta = squared + squared.shift(1).over("security_id")
+    alpha = ((2.0 * beta).sqrt() - beta.sqrt()) / _DENOMINATOR - (gamma / _DENOMINATOR).sqrt()
+    return (2.0 * (alpha.exp() - 1.0) / (1.0 + alpha.exp())).clip(0.0)
+
+
+def _abdi_ranaldo_spread() -> pl.Expr:
+    """The two-day corrected estimator: negative two-day squares go to zero before the root.
+
+    Each value is stamped on the second of its two days, so a month end sees no later price.
+    """
+    close = (pl.col("close") * pl.col("split_factor")).log()
+    middle = (pl.col("_high").log() + pl.col("_low").log()) / 2.0
+    prior_close = close.shift(1).over("security_id")
+    prior_middle = middle.shift(1).over("security_id")
+    squared = 4.0 * (prior_close - prior_middle) * (prior_close - middle)
+    return squared.clip(0.0).sqrt()
+
+
 def trading_inputs(prices: pl.DataFrame, ends: list[date], config: CostConfig) -> pl.DataFrame:
     """``asof``, ``security_id``, ``half_spread``, ``daily_vol``, ``adv`` at each month end.
 
@@ -72,21 +102,29 @@ def trading_inputs(prices: pl.DataFrame, ends: list[date], config: CostConfig) -
         (pl.col("high") * pl.col("split_factor")).alias("_high"),
         (pl.col("low") * pl.col("split_factor")).alias("_low"),
     )
-    squared = (pl.col("_high") / pl.col("_low")).log() ** 2
-    two_high = pl.max_horizontal(pl.col("_high"), pl.col("_high").shift(1).over("security_id"))
-    two_low = pl.min_horizontal(pl.col("_low"), pl.col("_low").shift(1).over("security_id"))
-    gamma = (two_high / two_low).log() ** 2
-    beta = squared + squared.shift(1).over("security_id")
-    alpha = ((2.0 * beta).sqrt() - beta.sqrt()) / _DENOMINATOR - (gamma / _DENOMINATOR).sqrt()
-    spread = (2.0 * (alpha.exp() - 1.0) / (1.0 + alpha.exp())).clip(0.0)
-    with_spread = ordered.with_columns(
-        spread.rolling_mean(config.vol_days, min_samples=10).over("security_id").alias("cs_spread")
-    )
     floor = config.floor_bps / 10_000.0
-    return with_spread.filter(pl.col("date").is_in(ends)).select(
+    if config.spread_model == "size_bucket":
+        half = size_bucket_half_spread(pl.col("mcap")).alias("half_spread")
+        estimated = ordered.with_columns(half)
+    else:
+        daily = (
+            _abdi_ranaldo_spread()
+            if config.spread_model == "abdi_ranaldo"
+            else _corwin_schultz_spread()
+        )
+        estimated = ordered.with_columns(
+            (
+                daily.rolling_mean(config.vol_days, min_samples=10)
+                .over("security_id")
+                .fill_null(0.0)
+                .fill_nan(0.0)
+                / 2.0
+            ).alias("half_spread")
+        )
+    return estimated.filter(pl.col("date").is_in(ends)).select(
         pl.col("date").alias("asof"),
         "security_id",
-        (pl.col("cs_spread").fill_null(0.0).fill_nan(0.0) / 2.0).clip(floor).alias("half_spread"),
+        pl.col("half_spread").clip(floor),
         pl.col("daily_vol").fill_nan(None),
         "adv",
     )
