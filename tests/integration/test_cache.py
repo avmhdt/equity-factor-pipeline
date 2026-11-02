@@ -92,6 +92,9 @@ def test_tables_arrive_and_the_log_holds_composites(
     expected = ("ic_summary", "backtest_summary", "execution_timing", "cost_sensitivity")
     for name in (*expected, "capacity", "attribution"):
         assert (tables / f"{name}.csv").is_file(), name
+    assert (tables / "numbers.json").is_file()
+    assert (tables / "figures" / "composite_gross_net.png").is_file()
+    assert (tables / "figures" / "ic_momentum.png").is_file()
     log = pl.read_csv(root / "data" / "processed" / "trials" / "tiny" / "trial_log.csv")
     assert log.filter(pl.col("strategy_family").eq("composite")).height > 0
 

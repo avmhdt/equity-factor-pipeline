@@ -8,3 +8,5 @@ Install from git:
 ```bash
 uv add "eqpit @ git+https://github.com/avmhdt/equity-factor-pipeline#subdirectory=packages/eqpit"
 ```
+
+A worked example on the synthetic provider is in [docs/reuse.md](https://github.com/avmhdt/equity-factor-pipeline/blob/main/docs/reuse.md), and CI runs it on Ubuntu and Windows with this package installed alone.

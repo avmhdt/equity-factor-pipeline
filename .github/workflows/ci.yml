@@ -57,6 +57,22 @@ jobs:
       - run: uv run coverage report --include="src/efp/*" --fail-under=85
       - run: uv run coverage report --include="packages/eqpit/src/eqpit/*" --fail-under=85
 
+  eqpit-standalone:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - run: uv venv standalone --no-project
+      - run: uv pip install --python standalone ./packages/eqpit
+      - run: uv run --no-project --python standalone python scripts/run_reuse_example.py
+
   leakage:
     runs-on: ubuntu-latest
     steps:
