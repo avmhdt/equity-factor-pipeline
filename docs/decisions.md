@@ -170,6 +170,7 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | D-06 rerun | 2010 cut | Results are also reported from 2010 | Both size-table sources describe the 2010s, so the full sample understates early spreads |
 | D-06 rerun | Trials | 32 rows, marked in `x_note`. Corwin-Schultz rows weren't repeated | Every run counts toward N, including ones made because a result disappointed |
 | D-06 rerun | Next assumption | Impact wasn't tested | It's the largest cost in the headline book under every model. D-06 keeps the coefficient, and no published check was made. This rerun doesn't support a claim about what a better execution model would earn |
+| D-06 rerun | AC-W-04 again | Passed on a fresh clone of `af7d7a8`: 49 of 49 stages in 81.3 minutes, only `pipeline_timings` changed, no new trial rows | The `spread_models` stage adds about 7 minutes. Same machine as before |
 
 ## Known limits on the free path
 
