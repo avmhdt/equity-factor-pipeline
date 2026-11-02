@@ -16,6 +16,17 @@ THRESHOLD = 0.70
 MINIMUM_REPLICATED = 20
 MIN_NAMES = 4
 _PRICE = re.compile(r"abs\(prc\)>(\d+)")
+INVERTED_TARGETS = frozenset({"EntMult"})
+"""OSAP sorts EV/EBITDA and we sort its reciprocal, so each side already matches the other's."""
+FINANCIAL_INDUSTRIES = (45, 46, 47, 48)
+"""FF-49 banks, insurance, real estate and trading: SIC 6000 to 6999."""
+SCREENS: dict[str, pl.Expr] = {
+    "EP": pl.col("raw") > 0,
+    "EntMult": pl.col("raw") > 0,
+    "GP": ~pl.col("ff49").is_in(FINANCIAL_INDUSTRIES).fill_null(False),
+}
+"""OSAP's signal code drops loss-makers from EP and EntMult and financials from GP. These apply
+to the replication only; the signal library keeps its own definitions."""
 
 
 @dataclass(frozen=True)
@@ -73,7 +84,7 @@ def leg_assignments(
     """``hold``, ``previous``, ``leg``, ``security_id`` for one signal's portfolios.
 
     Args:
-        scores: ``asof``, ``security_id`` and sign-aligned ``z``.
+        scores: ``asof``, ``security_id``, ``raw`` and sign-aligned ``z``.
         panels: monthly inputs.
         convention: the published portfolio's rules.
         months: every month end, sorted.
@@ -81,7 +92,7 @@ def leg_assignments(
     position = {month: index for index, month in enumerate(months)}
     filtered = (
         scores.join(
-            panels.universe.select("asof", "security_id", "exchange"),
+            panels.universe.select("asof", "security_id", "exchange", "ff49"),
             on=["asof", "security_id"],
             how="inner",
         )
@@ -93,6 +104,7 @@ def leg_assignments(
         .filter(
             pl.col("close") > convention.min_price,
             pl.col("exchange").is_in(convention.exchanges),
+            SCREENS.get(convention.target, pl.lit(True)),
         )
         .drop_nulls("z")
     )
@@ -179,7 +191,7 @@ def replicate_signal(
     ours = long_short(
         leg_assignments(scores, panels, convention, months), panels, convention.weighting
     )
-    aligned = spec.direction * convention.sign
+    aligned = 1 if target in INVERTED_TARGETS else spec.direction * convention.sign
     theirs = published.filter(pl.col("target").eq(target)).select(
         "month", (pl.col("ret") * aligned).alias("theirs")
     )
@@ -245,7 +257,7 @@ def replicate_all(
     for name in registered():
         if spec_of(name).osap_target is None:
             continue
-        scores = panel.filter(pl.col("signal").eq(name)).select("asof", "security_id", "z")
+        scores = panel.filter(pl.col("signal").eq(name)).select("asof", "security_id", "raw", "z")
         if scores.is_empty():
             continue
         row, ours = replicate_signal(name, scores, panels, doc, published, months)

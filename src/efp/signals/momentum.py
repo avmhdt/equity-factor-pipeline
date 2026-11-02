@@ -84,7 +84,7 @@ def ind_mom(store: PitStore, asof: date) -> pl.DataFrame:
                 "input_available_at": pl.Datetime("ns", "UTC"),
             }
         )
-    start = store.universe(ends[-7], 3000).select(
+    start = store.universe(ends[-7], store.signal_universe).select(
         "security_id", "ff49", pl.col("company_mcap").alias("weight")
     )
     returns = window_return(store, asof, 5, 0)

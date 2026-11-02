@@ -32,7 +32,7 @@ from efp.evaluation.survivorship import bias_table, delisted_names_by_year, seri
 from efp.evaluation.value_gap import decompose
 from efp.explog import TrialRecord, export_log, log_trial, summarize_log
 from efp.logs import configure_logging
-from efp.panel import all_signals, build_panel, read_panel, write_panel
+from efp.panel import ALL_ELIGIBLE, all_signals, build_panel, read_panel, write_panel
 from efp.pipeline.cache import StageCache
 from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
 from efp.reports.figures import post_publication_bars
@@ -249,6 +249,9 @@ def _dates(store: PitStore, experiment: Experiment | None) -> list[date]:
 @signals_app.command("compute")
 def signals_compute(
     only: Annotated[str | None, typer.Option("--only")] = None,
+    all_eligible: Annotated[
+        bool, typer.Option("--all-eligible", help="Every eligible name, for OSAP replication")
+    ] = False,
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
@@ -257,8 +260,11 @@ def signals_compute(
     data_dir = _data_dir(settings, experiment)
     store = PitStore.open(data_dir / "processed" / "pit")
     ids = signals_argument(only) or list(all_signals())
-    panel, dropped = build_panel(store, ids, _dates(store, experiment), panel_config(experiment))
-    write_panel(panel, data_dir / "processed" / "signals")
+    rules = panel_config(experiment)
+    if all_eligible:
+        rules = replace(rules, universe=ALL_ELIGIBLE, neutral_mode="none")
+    panel, dropped = build_panel(store, ids, _dates(store, experiment), rules)
+    write_panel(panel, data_dir / "processed" / ("signals_all" if all_eligible else "signals"))
     provider = str(read_pit_manifest(store.root)["provider"])
     name = experiment.run.name if experiment is not None else provider
     _write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
@@ -362,7 +368,7 @@ def _validate_survivorship(store: PitStore, tables: Path, provider: str) -> None
 
 def _validate_osap(store: PitStore, data_dir: Path, tables: Path, provider: str) -> None:
     root = data_dir / "external" / "osap"
-    panel = read_panel(data_dir / "processed" / "signals")
+    panel = read_panel(data_dir / "processed" / "signals_all")
     table, series = replicate_all(
         panel, load_panels(store), load_signal_doc(root), load_osap_returns(root)
     )
@@ -371,7 +377,7 @@ def _validate_osap(store: PitStore, data_dir: Path, tables: Path, provider: str)
     log_path = Path("results") / "trial_log.csv"
     if provider in ("sharadar", "wrds"):
         for (name,), part in series.group_by(["signal"], maintain_order=True):
-            _log_series(part.sort("month"), f"osap_{name}", provider, "top_3000", log_path)
+            _log_series(part.sort("month"), f"osap_{name}", provider, "all_eligible", log_path)
     typer.echo(f"replicated {table['passed'].sum()} of {table.height} signals at 0.70")
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import shutil
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -25,12 +26,14 @@ from efp.evaluation.multiple_testing import (
     two_sided_p,
 )
 from efp.evaluation.osap import (
+    INVERTED_TARGETS,
     Convention,
     formation_months,
     leg_assignments,
     long_short,
     read_convention,
     replicate_all,
+    replicate_signal,
 )
 from efp.evaluation.postpub import per_signal, pooled_regression, summary_rows, tag_periods
 from efp.evaluation.value_gap import decompose
@@ -102,6 +105,7 @@ def small_panels() -> Panels:
             "exchange": ["NYSE"] * 4,
             "company_id": names,
             "company_mcap": [1.0, 2.0, 3.0, 4.0],
+            "ff49": [45, 1, 1, 1],
         }
     )
     caps = pl.DataFrame(
@@ -124,7 +128,12 @@ def small_panels() -> Panels:
 
 def scores() -> pl.DataFrame:
     return pl.DataFrame(
-        {"asof": [JANUARY] * 4, "security_id": ["A", "B", "C", "D"], "z": [-2.0, -1.0, 1.0, 2.0]}
+        {
+            "asof": [JANUARY] * 4,
+            "security_id": ["A", "B", "C", "D"],
+            "raw": [-2.0, -1.0, 1.0, 2.0],
+            "z": [-2.0, -1.0, 1.0, 2.0],
+        }
     )
 
 
@@ -158,6 +167,41 @@ def test_the_price_filter_removes_cheap_names() -> None:
     months = [JANUARY, FEBRUARY, MARCH]
     legs = leg_assignments(scores(), small_panels(), convention(min_price=5.0), months)
     assert "C" not in legs["security_id"].to_list()
+
+
+def test_ep_keeps_positive_values_only() -> None:
+    rules = replace(convention(), target="EP")
+    legs = leg_assignments(scores(), small_panels(), rules, [JANUARY, FEBRUARY, MARCH])
+    assert set(legs["security_id"].to_list()) <= {"C", "D"}
+
+
+def test_gp_leaves_out_financials() -> None:
+    rules = replace(convention(), target="GP")
+    legs = leg_assignments(scores(), small_panels(), rules, [JANUARY, FEBRUARY, MARCH])
+    assert "A" not in legs["security_id"].to_list()
+
+
+def test_the_inverted_target_is_not_flipped(
+    small_store: PitStore, replication_panel: pl.DataFrame
+) -> None:
+    panels = load_panels(small_store)
+    doc = pl.DataFrame(
+        [("EntMult", -1.0, "EW", 0.2, None, 12.0, 6.0, None, 1963, 2009, 2011)],
+        schema=list(DOC_COLUMNS),
+        orient="row",
+    )
+    months = panels.caps["month"].unique().sort().to_list()
+    scored = replication_panel.filter(pl.col("signal").eq("mom_6_1")).select(
+        "asof", "security_id", "raw", "z"
+    )
+    published = pl.DataFrame(
+        {"month": months, "target": ["EntMult"] * len(months), "ret": [0.01] * len(months)},
+        schema={"month": pl.Date, "target": pl.String, "ret": pl.Float64},
+    )
+    assert {"EntMult"} == INVERTED_TARGETS
+    row, _ = replicate_signal("ebitda_ev", scored, panels, doc, published, months)
+    assert row["opposite_sign"] is False
+    assert row["mean_osap"] == pytest.approx(0.01)
 
 
 def test_value_weights_use_the_prior_month_cap() -> None:
