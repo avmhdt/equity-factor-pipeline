@@ -74,4 +74,10 @@ def post_publication_bars(table: pl.DataFrame, path: Path, dev_only: bool = Fals
     axes.set_axisbelow(True)
     axes.set_xlabel("Mean long-short return, % per month", color=MUTED, fontsize=8)
     axes.legend(frameon=False, fontsize=8, loc="lower right", labelcolor=INK)
-    _finish(figure, axes, "Published anomalies, in sample and after publication", path, dev_only)
+    _finish(
+        figure,
+        axes,
+        "Published anomalies, in sample and after publication (OSAP series)",
+        path,
+        dev_only,
+    )

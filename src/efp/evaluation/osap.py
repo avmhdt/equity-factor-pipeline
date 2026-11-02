@@ -47,6 +47,13 @@ ANNUAL_ITEMS = (
 ANNUAL_TARGETS = frozenset({"AssetGrowth", "NOA", "Accruals", "InvestPPEInv", "BMdec"})
 """Annual Compustat items lagged six months in OSAP, valid for twelve months after that. The
 signal library's versions use the latest quarter."""
+KNOWN_GAPS = {
+    "accruals": "Sharadar has no taxes payable, part of OSAP's change in current liabilities",
+    "fscore": "OSAP's PS uses other items for some tests; ours scores a missing comparison as 0",
+    "noa": "Sharadar has no minority interest or deferred charges, both in OSAP's formula",
+    "sue": "OSAP takes a two-year drift out of the EPS change; ours does not",
+}
+"""What the data or the definition cannot match, for the failures listed in the table."""
 FISCAL_LAG_MONTHS = 6
 FISCAL_STALE_MONTHS = 18
 
@@ -335,16 +342,19 @@ def replicate_signal(
             "mean_osap": mean_theirs,
             "same_sign": same_sign,
             "passed": passed,
-            "reason": "" if passed else _reason(correlation, same_sign),
+            "reason": "" if passed else _reason(name, correlation, same_sign),
         },
         ours,
     )
 
 
-def _reason(correlation: float, same_sign: bool) -> str:
+def _reason(name: str, correlation: float, same_sign: bool) -> str:
     if correlation < THRESHOLD and not same_sign:
-        return "correlation under 0.70 and mean of the opposite sign"
-    return "correlation under 0.70" if correlation < THRESHOLD else "mean of the opposite sign"
+        text = "correlation under 0.70 and mean of the opposite sign"
+    else:
+        text = "correlation under 0.70" if correlation < THRESHOLD else "mean of the opposite sign"
+    gap = KNOWN_GAPS.get(name)
+    return f"{text}; likely cause: {gap}" if gap else text
 
 
 def _unmatched(name: str, target: str, reason: str) -> dict[str, object]:

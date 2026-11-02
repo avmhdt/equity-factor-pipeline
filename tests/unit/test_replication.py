@@ -31,6 +31,7 @@ from efp.evaluation.osap import (
     Convention,
     _annual_value,
     _fiscal_years,
+    _reason,
     annual_scores,
     formation_months,
     leg_assignments,
@@ -373,6 +374,11 @@ def test_replication_uses_annual_timing_when_given_a_store(
     )
     assert table["target"].to_list() == ["AssetGrowth"]
     assert series["month"].n_unique() > 40
+
+
+def test_a_failure_names_its_likely_cause() -> None:
+    assert "taxes payable" in _reason("accruals", 0.4, True)
+    assert _reason("size", 0.4, False).endswith("opposite sign")
 
 
 def test_a_target_missing_from_the_doc_is_listed(
