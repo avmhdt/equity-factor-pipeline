@@ -90,7 +90,9 @@ def ind_mom(store: PitStore, asof: date) -> pl.DataFrame:
     returns = window_return(store, asof, 5, 0)
     joined = start.join(returns, on="security_id", how="inner").drop_nulls(["ff49", "weight"])
     industries = joined.group_by("ff49", maintain_order=True).agg(
-        ((pl.col("window") * pl.col("weight")).sum() / pl.col("weight").sum()).alias("industry"),
+        ((pl.col("window") * pl.col("weight")).sort().sum() / pl.col("weight").sort().sum()).alias(
+            "industry"
+        ),
         pl.col("available_at").max(),
     )
     assigned = now.join(industries, on="ff49", how="inner")

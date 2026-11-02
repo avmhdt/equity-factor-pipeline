@@ -37,7 +37,7 @@ def gp_probe(store: PitStore, asof: date) -> pl.DataFrame:
     assets = store.fundamentals(asof, ["total_assets"]).filter(pl.col("period_type").eq("instant"))
     signed = pl.when(pl.col("item").eq("revenue")).then(pl.col("value")).otherwise(-pl.col("value"))
     gross = flows.group_by("company_id", maintain_order=True).agg(
-        signed.sum().alias("gross"),
+        signed.sort().sum().alias("gross"),
         pl.col("available_at").max().alias("flow_at"),
         pl.len().alias("rows"),
     )

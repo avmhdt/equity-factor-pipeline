@@ -57,7 +57,7 @@ def build_universe(
     )
     ordered = eligible.sort("asof", "company_id", "security_id")
     caps = ordered.group_by("asof", "company_id", maintain_order=True).agg(
-        pl.col("mcap").sum().alias("company_mcap")
+        pl.col("mcap").sort().sum().alias("company_mcap")
     )
     largest = (
         ordered.join(caps, on=["asof", "company_id"])

@@ -50,7 +50,7 @@ def ttm(store: PitStore, asof: date, items: Sequence[str]) -> pl.DataFrame:
     summed = (
         rows.group_by("company_id", "item", maintain_order=True)
         .agg(
-            pl.col("value").sum(),
+            pl.col("value").sort().sum(),
             pl.len().alias("quarters"),
             span.alias("span"),
             pl.col("period_end").max().alias("end"),

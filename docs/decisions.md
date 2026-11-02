@@ -132,6 +132,7 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | M5 | Multiple testing | Over all logged trials, repeats included: 298 trials, 78 over t=2, 23 over t=3, 8 under 5% BHY | Repeats raise the count, which only makes the BHY test stricter. Composites join at M6 |
 | M5 | Dirty flag | Tracked changes under `results/` no longer mark a run dirty | A run's own table changes would otherwise dirty the next run. `signals compute --all-eligible` also stopped overwriting the headline drops table, which is what dirtied the second OSAP run |
 | M5 | OSAP rows in the trial log | 26 at top 3,000, 26 all-eligible and dirty, then 5, 5 and 4 reruns. The five rows at `a15fb2a` hold the June-only series, so `noa` and `inv_at` warn on short history | Rows are never rewritten |
+| M5 | Grouped float sums | Values are sorted before a grouped `sum`, in signals and in the PIT build, and the static leakage check rejects a bare `sum` in signal code | CI's bit-identical perturbation test failed on one ubuntu run: 80 values on one date moved by 6e-16. It reproduced on Linux in 2 of 25 runs. Row order inside groups never changed, yet a plain grouped `sum` or `mean` differed about once in 1,000 evaluations, even on one thread, and `sort().sum()` never did in 8,000. Polars appears to sample each frame to choose a group-by path, adding the same numbers in a different grouping on the partitioned one. This was float noise, not a leak, and the tolerance stays at zero |
 
 ## Known limits on the free path
 

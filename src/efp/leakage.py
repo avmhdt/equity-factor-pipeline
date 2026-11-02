@@ -41,6 +41,24 @@ def _bits(value: float | None) -> bytes:
     return b"" if value is None else struct.pack("<d", value)
 
 
+def _describe_changes(left: pl.DataFrame, right: pl.DataFrame, moved: list[int]) -> str:
+    """Per signal and date, how many values moved and the largest relative move."""
+    rows = left.select("signal", "asof", pl.col("raw").alias("before")).with_columns(
+        right["raw"].alias("after")
+    )[moved]
+    summary = (
+        rows.with_columns(
+            ((pl.col("after") - pl.col("before")).abs() / pl.col("before").abs()).alias("move")
+        )
+        .group_by("signal", "asof", maintain_order=True)
+        .agg(pl.len().alias("values"), pl.col("move").max().alias("largest"))
+    )
+    return "; ".join(
+        f"{signal} {asof}: {values} values, largest relative move {largest:.3g}"
+        for signal, asof, values, largest in summary.iter_rows()
+    )
+
+
 def assert_identical(baseline: pl.DataFrame, perturbed: pl.DataFrame) -> None:
     """Raise ``LeakageError`` unless two signal panels are bit-identical."""
     keys = ["signal", "asof", "security_id"]
@@ -51,13 +69,32 @@ def assert_identical(baseline: pl.DataFrame, perturbed: pl.DataFrame) -> None:
     ).to_dict(as_series=False):
         raise LeakageError("perturbing later data changed which rows exist")
     values = zip(left["raw"].to_list(), right["raw"].to_list(), strict=True)
-    changed = sum(_bits(a) != _bits(b) for a, b in values)
-    if changed:
-        raise LeakageError(f"perturbing later data changed {changed} earlier signal values")
+    moved = [index for index, (a, b) in enumerate(values) if _bits(a) != _bits(b)]
+    if moved:
+        raise LeakageError(
+            f"perturbing later data changed {len(moved)} earlier signal values: "
+            f"{_describe_changes(left, right, moved)}"
+        )
+
+
+def _is_unsorted_sum(node: ast.Call) -> bool:
+    """A grouped float sum varies in its last bits between runs unless its values are sorted.
+
+    Polars samples each frame to choose a group-by path, and a partitioned path adds the same
+    numbers in a different grouping. About one evaluation in a thousand takes it.
+    """
+    if not isinstance(node.func, ast.Attribute) or node.func.attr != "sum":
+        return False
+    receiver = node.func.value
+    return not (
+        isinstance(receiver, ast.Call)
+        and isinstance(receiver.func, ast.Attribute)
+        and receiver.func.attr == "sort"
+    )
 
 
 def _is_unordered_group_by(node: ast.Call) -> bool:
-    """A Polars float sum varies in its last bits between runs without ``maintain_order``."""
+    """Without ``maintain_order`` a group's rows and so its float sums can change between runs."""
     if not isinstance(node.func, ast.Attribute) or node.func.attr != "group_by":
         return False
     return not any(
@@ -94,6 +131,8 @@ def import_violations(path: Path) -> list[str]:
                 found.append(f"{path.name}: imports {module}")
         if isinstance(node, ast.Call) and _is_unordered_group_by(node):
             found.append(f"{path.name}: group_by without maintain_order=True")
+        if isinstance(node, ast.Call) and _is_unsorted_sum(node):
+            found.append(f"{path.name}: sum without sort()")
         if isinstance(node, ast.Attribute) and node.attr in FORBIDDEN_NAMES:
             found.append(f"{path.name}: uses {node.attr}")
         if isinstance(node, ast.Name) and node.id in FORBIDDEN_NAMES:
