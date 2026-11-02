@@ -92,6 +92,9 @@ def test_tables_arrive_and_the_log_holds_composites(
     root, _, _ = built
     tables = root / "data" / "processed" / "tables" / "tiny"
     expected = ("ic_summary", "backtest_summary", "execution_timing", "cost_sensitivity")
+    assert (tables / "spread_models.csv").is_file()
+    assert (tables / "spread_model_capacity.csv").is_file()
+    assert (tables / "spread_model_checks.csv").is_file()
     for name in (*expected, "capacity", "attribution"):
         assert (tables / f"{name}.csv").is_file(), name
     assert (tables / "numbers.json").is_file()

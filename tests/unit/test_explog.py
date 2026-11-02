@@ -143,3 +143,11 @@ def test_once_skips_a_repeat_and_keeps_a_change(tmp_path: Path) -> None:
     moved = series.with_columns(pl.col("ret") * 1.5 + 0.001)
     log_trial(TrialRecord("value", {"a": 1}, moved, "M"), log, runs, once=True)
     assert pl.read_csv(log).height == 2
+
+
+def test_a_note_reaches_the_log(tmp_path: Path) -> None:
+    months = [date(2020, 1, 31) + timedelta(days=30 * index) for index in range(24)]
+    series = pl.DataFrame({"date": months, "ret": [0.01 + 0.002 * (i % 5) for i in range(24)]})
+    log = tmp_path / "trial_log.csv"
+    log_trial(TrialRecord("value", {"a": 1}, series, "M", "late"), log, tmp_path / "runs")
+    assert pl.read_csv(log, schema_overrides={"x_note": pl.String})["x_note"].to_list() == ["late"]

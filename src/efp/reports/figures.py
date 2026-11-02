@@ -367,3 +367,54 @@ def gross_and_net(
     axes.set_ylabel("Sum of monthly returns, %", color=MUTED, fontsize=8)
     axes.legend(frameon=False, fontsize=8, loc="lower left", labelcolor=INK)
     _finish(figure, axes, "Headline composite: gross and net", path, dev_only)
+
+
+def spread_model_bars(
+    checks: pl.DataFrame, table: pl.DataFrame, path: Path, dev_only: bool = False
+) -> None:
+    """Each model's half-spreads against published ones, and the headline book's net Sharpe.
+
+    Args:
+        checks: ``spread_model_checks``.
+        table: ``spread_models`` rows for the headline composite.
+        path: output file.
+        dev_only: watermark the figure (DQ-16).
+    """
+    models = ("corwin_schultz", "abdi_ranaldo", "size_bucket")
+    labels = ("Corwin-Schultz", "Abdi-Ranaldo", "Size table")
+    figure, panels = _small_multiples(2, 9.0, 3.4)
+    left, right = panels
+    bands = checks.filter(pl.col("model").eq(models[0]))["band"].to_list()
+    positions = list(range(len(bands)))
+    published = checks.filter(pl.col("model").eq(models[0]))["benchmark_bps"].to_list()
+    left.plot(positions, published, color=INK, linewidth=2.0, marker="o", label="Published")
+    for model, label, color in zip(models[:2], labels[:2], (SECOND, SERIES), strict=True):
+        part = checks.filter(pl.col("model").eq(model))
+        left.plot(positions, part["estimate_bps"].to_list(), color=color, marker="o", label=label)
+    left.set_yscale("log")
+    left.set_xticks(positions, bands, rotation=45, ha="right")
+    left.set_ylabel("Half-spread, bps (log scale)", color=MUTED, fontsize=7)
+    left.set_title("Estimates against published spreads", color=INK, fontsize=8, loc="left")
+    left.legend(frameon=False, fontsize=7, labelcolor=INK)
+    full = table.filter(pl.col("period").eq("full"))
+    recent = table.filter(pl.col("period").eq("2010_on"))
+    series = (
+        ("No cap, full sample", full, "net_sharpe", GRID),
+        ("ADV cap, full sample", full, "capped_net_sharpe", "#b7c0ca"),
+        ("No cap, 2010 on", recent, "net_sharpe", MUTED),
+        ("ADV cap, 2010 on", recent, "capped_net_sharpe", SERIES),
+    )
+    for offset, (label, frame, column, shade) in enumerate(series):
+        values = [frame.filter(pl.col("spread_model").eq(model))[column].item() for model in models]
+        right.bar(
+            [index + 0.2 * (offset - 1.5) for index in range(len(models))],
+            values,
+            width=0.18,
+            color=shade,
+            label=label,
+        )
+    right.set_xticks(range(len(models)), labels)
+    right.axhline(0.0, color=MUTED, linewidth=0.8)
+    right.set_title("Headline book: net Sharpe", color=INK, fontsize=8, loc="left")
+    right.legend(frameon=False, fontsize=7, labelcolor=INK)
+    _save(figure, "Spread models side by side", path, dev_only)

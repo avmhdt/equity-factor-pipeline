@@ -12,9 +12,24 @@ import polars as pl
 
 from efp.attribution.ff import FACTORS, attribute
 from efp.backtest.capacity import capacity_curve
+from efp.backtest.costs import SPREAD_MODELS
 from efp.backtest.engine import BacktestResult, SimulationConfig
 from efp.backtest.portfolio import target_weights
-from efp.backtest.run import BacktestConfig, Market, frictionless, run_book, summary_row
+from efp.backtest.run import (
+    BacktestConfig,
+    Market,
+    frictionless,
+    load_market,
+    run_book,
+    summary_row,
+)
+from efp.backtest.spread_study import (
+    benchmark_checks,
+    capacity_rows,
+    model_rows,
+    run_model,
+    spread_estimates,
+)
 from efp.combine.walkforward import (
     CombineConfig,
     Method,
@@ -30,7 +45,7 @@ from efp.evaluation.survivorship import bias_table, delisted_names_by_year, seri
 from efp.evaluation.value_gap import decompose
 from efp.explog import TrialRecord, log_trial
 from efp.panel import all_signals
-from efp.reports.figures import capacity_lines, post_publication_bars
+from efp.reports.figures import capacity_lines, post_publication_bars, spread_model_bars
 from efp.reports.tables import write_table
 from efp.signals.registry import spec_of
 from eqpit import calendar
@@ -38,6 +53,7 @@ from eqpit.benchmarks import load_french, load_osap_returns, load_signal_doc
 from eqpit.store import PitStore
 
 LICENSED = ("sharadar", "wrds")
+LATE_SPREAD_NOTE = "spread model run after the Corwin-Schultz net failure"
 EXECUTION_LABELS = {
     "close": "same close",
     "next_open": "next open",
@@ -299,23 +315,31 @@ def _backtest_trial(
     provider: str,
     net: bool,
 ) -> TrialRecord:
+    costs = asdict(config.costs)
+    model = costs.pop("spread_model")
+    params: dict[str, object] = {
+        "composite": name,
+        "construction": config.construction,
+        "gross_leverage": config.gross,
+        "execution": mode,
+        "aum_usd": config.aum,
+        "max_adv_participation": simulation.max_participation,
+        "cost_scale": simulation.spread_scale,
+        "costs": json.loads(json.dumps(costs)) if net else "none",
+        "provider": provider,
+        "freq": "M",
+        "net": net,
+    }
+    note = ""
+    if model != SPREAD_MODELS[0]:
+        params["spread_model"] = model
+        note = LATE_SPREAD_NOTE
     return TrialRecord(
         "composite",
-        {
-            "composite": name,
-            "construction": config.construction,
-            "gross_leverage": config.gross,
-            "execution": mode,
-            "aum_usd": config.aum,
-            "max_adv_participation": simulation.max_participation,
-            "cost_scale": simulation.spread_scale,
-            "costs": json.loads(json.dumps(asdict(config.costs))) if net else "none",
-            "provider": provider,
-            "freq": "M",
-            "net": net,
-        },
+        params,
         series.select(pl.col("month").alias("date"), "ret", "ret_gross"),
         "M",
+        note,
     )
 
 
@@ -425,6 +449,85 @@ def backtest_task(
     if sensitivity:
         write_table(pl.DataFrame(sensitivity), sink.tables, "cost_sensitivity")
     return summary
+
+
+def spread_model_task(
+    store: PitStore,
+    ends: list[date],
+    composites: Path,
+    names: Sequence[str],
+    factors: pl.DataFrame,
+    config: BacktestConfig,
+    sink: Sink,
+    provider: str,
+    dev_only: bool,
+) -> pl.DataFrame:
+    """Every spread model side by side: net results, capacity and a check against published data.
+
+    Args:
+        store: the point-in-time store.
+        ends: month ends.
+        composites: directory of composite score files.
+        names: the composites that get a capacity test.
+        factors: monthly factors.
+        config: backtest choices, on the headline spread model.
+        sink: tables and trial log.
+        provider: data provider.
+        dev_only: watermark figures.
+    """
+    mode = config.headline_execution
+    rows: list[dict[str, object]] = []
+    capacity: list[dict[str, object]] = []
+    paths = [
+        path
+        for path in sorted(composites.glob("*.parquet"))
+        if path.stem in names or path.stem.startswith("family_")
+    ]
+    for model in SPREAD_MODELS:
+        chosen = replace(
+            config, costs=replace(config.costs, spread_model=model), executions=(mode,)
+        )
+        market = load_market(store, ends, chosen)
+        for path in paths:
+            scores = pl.read_parquet(path)
+            run = run_model(path.stem, model, scores, market, chosen)
+            rows += model_rows(run, factors, chosen.aum)
+            if model != SPREAD_MODELS[0]:
+                limit = chosen.capacity.max_participation
+                base = SimulationConfig(aum=chosen.aum, costs=chosen.costs)
+                capped = replace(base, max_participation=limit)
+                for result, simulation in ((run.uncapped, base), (run.capped, capped)):
+                    sink.record(
+                        _backtest_trial(
+                            path.stem, mode, result.series, simulation, chosen, provider, True
+                        )
+                    )
+            if path.stem in names:
+
+                def book(
+                    simulation: SimulationConfig,
+                    scores: pl.DataFrame = scores,
+                    market: Market = market,
+                    chosen: BacktestConfig = chosen,
+                ) -> BacktestResult:
+                    return run_book(scores, market, mode, simulation, chosen)
+
+                capacity += capacity_rows(path.stem, model, book, factors, chosen)
+    table = pl.DataFrame(rows, infer_schema_length=None)
+    write_table(table, sink.tables, "spread_models")
+    write_table(
+        pl.DataFrame(capacity, infer_schema_length=None), sink.tables, "spread_model_capacity"
+    )
+    estimates = spread_estimates(store, ends, SPREAD_MODELS, config.costs)
+    checks = benchmark_checks(estimates)
+    write_table(checks, sink.tables, "spread_model_checks")
+    spread_model_bars(
+        checks,
+        table.filter(pl.col("composite").eq(names[0])),
+        sink.figures / "spread_models.png",
+        dev_only,
+    )
+    return table
 
 
 def own_factors(store: PitStore) -> pl.DataFrame:

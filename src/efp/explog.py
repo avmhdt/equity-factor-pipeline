@@ -56,12 +56,14 @@ class TrialRecord:
         params: every choice that defines the trial, JSON types only.
         returns: ``date`` and ``ret`` (decimal excess return), optionally ``ret_gross``.
         freq: D or M.
+        note: free text for the log's ``x_note`` column.
     """
 
     strategy_family: str
     params: dict[str, object]
     returns: pl.DataFrame
     freq: Literal["D", "M"]
+    note: str = ""
 
 
 def _git_sha(log_path: Path) -> str:
@@ -165,6 +167,7 @@ def log_trial(record: TrialRecord, log_path: Path, runs_dir: Path, once: bool = 
         "sharpe_annual": f"{sharpe:.10g}",
         "returns_path": f"runs/{row['run_id']}/returns.parquet",
         "x_periods_per_year": str(periods),
+        "x_note": record.note,
         "x_returns_basis": "excess",
         "x_selected": "false",
     }
