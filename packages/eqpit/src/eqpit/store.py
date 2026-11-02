@@ -137,7 +137,7 @@ class PitStore:
         if ids is not None:
             query = query.filter(pl.col("company_id").is_in(list(ids)))
         latest = (
-            query.sort(*_FUNDAMENTAL_KEY, "available_at", "accession")
+            query.sort(*_FUNDAMENTAL_KEY, "available_at", "accession", "value")
             .unique(subset=_FUNDAMENTAL_KEY, keep="last", maintain_order=True)
             .sort(
                 ["company_id", "item", "period_type", "period_end"],

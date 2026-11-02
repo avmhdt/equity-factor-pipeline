@@ -187,7 +187,7 @@ def _add_book_equity(facts: pl.DataFrame) -> pl.DataFrame:
 
 def _keep_value_changes(facts: pl.DataFrame) -> pl.DataFrame:
     """Keep the first report of each period and every later change of its value."""
-    ordered = facts.sort(*_KEY, "available_at", "accession")
+    ordered = facts.sort(*_KEY, "available_at", "accession", "value")
     changed = ordered.filter(pl.col("value").ne_missing(pl.col("value").shift(1).over(_KEY)))
     return changed.with_columns(
         (pl.int_range(pl.len()).over(_KEY) > 0).alias("is_restatement"),
@@ -228,6 +228,4 @@ def build_fundamentals(
         _add_book_equity(combined).with_columns(pl.col("end").alias("period_end"))
     )
     assert_after_period_end(built)
-    return conform(built.with_columns(pl.col("company_id")), FUNDAMENTALS_PIT).sort(
-        *_KEY, "available_at", "accession"
-    )
+    return conform(built, FUNDAMENTALS_PIT).sort(*_KEY, "available_at", "accession", "value")
