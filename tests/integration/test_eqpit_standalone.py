@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -15,8 +16,14 @@ FORBIDDEN = {"efp", "statsmodels", "sklearn", "linearmodels"}
 
 
 def test_the_reuse_example_runs() -> None:
+    plain = {key: value for key, value in os.environ.items() if key != "PYTHONUTF8"}
     done = subprocess.run(
-        [sys.executable, str(SCRIPT)], capture_output=True, text=True, check=False, timeout=180
+        [sys.executable, str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=180,
+        env={**plain, "PYTHONIOENCODING": "ascii"},
     )
     assert done.returncode == 0, done.stderr
     assert "refuses forward returns" in done.stdout

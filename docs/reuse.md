@@ -29,7 +29,7 @@ asof = store.month_ends(date(2017, 1, 1), date(2017, 12, 31))[-1]
 
 universe = store.universe(asof, 20)
 assert universe.height == 20
-print(universe.select("security_id", "rank", "mcap").head(3))
+print(universe["security_id"].head(3).to_list())
 
 prices = store.prices(asof, 21, universe["security_id"].to_list())
 assert prices["date"].max() <= asof
