@@ -81,12 +81,8 @@ high_52w,3000,sector_size_beta,ew,0.003387,1.111415,330
 high_52w,3000,sector_size_beta,vw,0.000998,0.339046,330
 ind_mom,1000,none,ew,0.007024,2.137648,331
 ind_mom,1000,none,vw,0.004720,1.425733,331
-ind_mom,1000,sector_size_beta,ew,-0.006909,-1.963175,330
-ind_mom,1000,sector_size_beta,vw,-0.006819,-2.105446,330
 ind_mom,3000,none,ew,0.011477,3.167584,331
 ind_mom,3000,none,vw,0.004309,1.286223,331
-ind_mom,3000,sector_size_beta,ew,-0.005988,-1.887533,330
-ind_mom,3000,sector_size_beta,vw,-0.005918,-1.792049,330
 inv_at,1000,none,ew,0.004339,1.840219,323
 inv_at,1000,none,vw,0.002348,0.986379,323
 inv_at,1000,sector_size_beta,ew,0.001069,0.700568,323

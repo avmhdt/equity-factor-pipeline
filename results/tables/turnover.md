@@ -21,7 +21,6 @@
 | high_52w | 0.825342 | 0.960386 | none |
 | high_52w | 0.833446 | 0.773258 | sector_size_beta |
 | ind_mom | 0.790607 | 0.879127 | none |
-| ind_mom | 0.261466 | 1.496399 | sector_size_beta |
 | inv_at | 0.943994 | 0.333511 | none |
 | inv_at | 0.929306 | 0.376531 | sector_size_beta |
 | ivol | 0.656186 | 1.205865 | none |

@@ -120,5 +120,5 @@ def capacity_lines(curve: pl.DataFrame, target: float, path: Path, dev_only: boo
     axes.set_axisbelow(True)
     axes.set_xlabel("Fund size, USD", color=MUTED, fontsize=8)
     axes.set_ylabel("Net FF5 + UMD alpha, % per year", color=MUTED, fontsize=8)
-    axes.legend(frameon=False, fontsize=8, loc="upper right", labelcolor=INK)
+    axes.legend(frameon=False, fontsize=8, loc="lower right", labelcolor=INK)
     _finish(figure, axes, "Net alpha by fund size", path, dev_only)

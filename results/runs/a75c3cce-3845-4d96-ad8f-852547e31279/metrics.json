@@ -1,0 +1,33 @@
+{
+  "n_obs": 328,
+  "params": {
+    "aum_usd": 100000000.0,
+    "composite": "ic_weighted_sector_size_beta",
+    "construction": "decile",
+    "cost_scale": 1.0,
+    "costs": {
+      "adv_days": 20,
+      "borrow_rest": 5.0,
+      "borrow_tiers": [
+        [
+          500,
+          0.25
+        ],
+        [
+          1000,
+          1.0
+        ]
+      ],
+      "floor_bps": 2.0,
+      "impact_coefficient": 1.0,
+      "vol_days": 20
+    },
+    "execution": "close",
+    "freq": "M",
+    "gross_leverage": 2.0,
+    "max_adv_participation": 0.1,
+    "net": true,
+    "provider": "sharadar"
+  },
+  "sharpe_annual": -1.0150364614790262
+}

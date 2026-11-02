@@ -1,4 +1,7 @@
-impact_multiplier,execution,max_adv_participation,zero_cost_alpha_annual,capacity_usd,status
-0.500000,next_vwap_proxy,0.100000,0.130352,,below grid min
-1.000000,next_vwap_proxy,0.100000,0.130352,,below grid min
-2.000000,next_vwap_proxy,0.100000,0.130352,,below grid min
+composite,impact_multiplier,execution,max_adv_participation,zero_cost_alpha_annual,capacity_usd,status
+equal_sector_size_beta,0.500000,next_vwap_proxy,0.100000,0.142544,,below grid min
+equal_sector_size_beta,1.000000,next_vwap_proxy,0.100000,0.142544,,below grid min
+equal_sector_size_beta,2.000000,next_vwap_proxy,0.100000,0.142544,,below grid min
+equal_sector_size_beta_top1000,0.500000,next_vwap_proxy,0.100000,0.085298,,below grid min
+equal_sector_size_beta_top1000,1.000000,next_vwap_proxy,0.100000,0.085298,,below grid min
+equal_sector_size_beta_top1000,2.000000,next_vwap_proxy,0.100000,0.085298,,below grid min
