@@ -81,3 +81,11 @@ jobs:
       - run: uv run efp rebuild --config configs/synthetic.yaml
       - run: uv run efp data verify --config configs/synthetic.yaml
       - run: uv run pytest tests/golden
+      - name: Validate the trial log
+        shell: bash
+        run: |
+          if uv run python -c "import overfitlab" 2>/dev/null; then
+            uv run overfitlab trials validate results/trial_log.csv
+          else
+            echo "::notice::overfitlab is not installed; trial log validation skipped"
+          fi

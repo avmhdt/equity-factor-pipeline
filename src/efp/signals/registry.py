@@ -58,6 +58,11 @@ def spec_of(signal_id: str) -> SignalSpec:
     return _REGISTRY[signal_id][0]
 
 
+def signal_function(signal_id: str) -> SignalFn:
+    """The function behind one signal."""
+    return _REGISTRY[signal_id][1]
+
+
 def registered() -> tuple[str, ...]:
     """Ids of all registered signals, sorted."""
     return tuple(sorted(_REGISTRY))
