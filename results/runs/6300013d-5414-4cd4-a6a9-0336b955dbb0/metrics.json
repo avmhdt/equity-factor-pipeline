@@ -1,0 +1,12 @@
+{
+  "n_obs": 340,
+  "params": {
+    "construction": "ff_2x3_nyse",
+    "factor": "rmw",
+    "freq": "M",
+    "net": false,
+    "provider": "sharadar",
+    "universe": "full"
+  },
+  "sharpe_annual": 0.6424272926961572
+}

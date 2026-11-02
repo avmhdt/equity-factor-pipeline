@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Status:** building. M1 and M2 are done: scaffolding, CI and the point-in-time layer on synthetic and free data.
+**Status:** building. M1 to M3 are done: scaffolding, CI, the point-in-time layer, and Sharadar data with Fama–French replication.
 
 | | |
 |---|---|
@@ -41,9 +41,9 @@ Raw and licensed data live in `data/`, which is git-ignored. Only download scrip
 
 ### Works (correct and reproducible)
 
-- [ ] Your momentum and size long–short returns correlate above 0.9 with Ken French’s series; value above 0.8 (definitions differ).
+- [x] Your momentum and size long–short returns correlate above 0.9 with Ken French’s series; value above 0.8 (definitions differ). (FR-21, AC-W-01)
 - [x] An automated leakage test fails the build if any feature uses data timestamped after its rebalance date. (FR-12, AC-W-02)
-- [ ] Delisted stocks are in the universe, and a survivors-only comparison shows the size of the bias you avoided.
+- [x] Delisted stocks are in the universe, and a survivors-only comparison shows the size of the bias you avoided. (FR-10, AC-W-03)
 - [ ] The full pipeline reproduces from raw data with one command on a clean machine.
 
 ### Impresses hirers

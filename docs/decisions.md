@@ -80,6 +80,30 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | M2 | `edgar_free` prices | From 2009 on; the snapshot keeps everything | Fundamentals start there. Stooq has five rows on non-sessions before that (1978-03-24, 1985-09-27), which DQ-17 caught |
 | M2 | `edgar_free` market cap | Stooq adjusted close times as-reported shares | Stooq does not publish unadjusted prices or splits, so old market caps run low after later splits. Dev path only; it is one more reason these tables stay labelled |
 | M2 | Stooq adjustment | Checked at import against Apple's 2020 split, which fails the pull if the file is unadjusted | P-12 says to verify, not assume |
+| M3 | D-04 sample period | `stocks` starts 1997-12-31 and ends 2026-10-30; `fundamentals` holds filings from 1993, thin before 1998. The universe is usable from early 1998, once first filings make market caps visible. French replication overlap: SMB, HML, RMW and CMA 1998-07 to 2026-09, UMD 1999-01 to 2026-09 | Recorded from the bundle pulled on 2026-11-02 |
+| M3 | Bulk downloads | 10 MB/s cap (`eqpit/throttle.py`), one table at a time. Measured 9.93 MB/s | Owner's rule: live recorders share the connection |
+| M3 | Signed download links | `years=full` redirects to a time-limited link, followed by hand with a second client that has no key header, and never logged | httpx would otherwise send `x-api-key` to the storage host |
+| M3 | `dividend` values | Restated with `closeunadj / close` before use | They are split-adjusted: Apple's May 2020 dividend reads 0.205, while 0.82 was paid against a 303 unadjusted close. Used directly, total returns on any stock that later split would be too low |
+| M3 | `spinoffdividend` | Taken as the value per parent share, not multiplied by `spinoff` | Alone it matches `closeadj` (median gap 0.0014%); times the ratio it misses by 8% |
+| M3 | `sharesbas` | Treated as restated to the latest split basis: market cap is `close * sharesbas * sharefactor` | Apple shows 17.1B shares in July 2020, when 4.3B were outstanding. `closeunadj * sharesbas` would be 4x too high on that date |
+| M3 | `ret` | `(closeunadj * ratio + cash) / previous - 1`, with the vendor's `closeadj` return on split and spinoff days | Over 37M rows the mean gap to `closeadj` is 0.0025%, against 0.08% from split-adjusted closes, which carry rounding noise. About 500 rows disagree by over 5%, mostly spinoff days and days with a split and a dividend together, where the vendor's own return is the better one. On those days `closeadj` is the source |
+| M3 | Shares before the first filing | Null, so no market cap and no universe entry | Using a later filing would leak. An IPO joins at the close after its first filing |
+| M3 | Secondary share classes | No market cap | SF1 covers the primary class only, and `sharesbas` with `sharefactor` gives the company total, so the sum over classes in DQ-07 comes from the primary row |
+| M3 | SCD2 history | SIC, venue and ticker windows come from `sicchangefrom`, `exchangefrom` and `tickerchangefrom` | Closes R-05's current-SIC risk. Today's value applies only after the last change. `share_type` uses today's SIC to find REITs |
+| M3 | Company key | `CIK:<cik>` from `secfilings`, else `SHR:<permaticker>` | 105 master rows across `SEP` and `SF1` have no CIK |
+| M3 | Share types | Domestic Common Stock classes map to `common`; SIC 6798 to `reit`; ADR commons to `adr`; Canadian and preferred to `other` | CRSP share codes 10 and 11 mean US-incorporated commons |
+| M3 | Action types | 73 vendor values, each mapped or listed as ignored. `acquisition*` rows beyond `acquisitionby` give consideration terms. A new value fails the build | Spec section 7b |
+| M3 | Delisting reasons | Bankruptcy is `liquidation`; regulatory and voluntary are `performance`, as CRSP codes 57x are; acquisitions and mergers are `merger`; no reason given is `unknown` | Result: 7,509 merger, 3,331 liquidation, 1,433 performance, 2,433 unknown |
+| M3 | Delisting returns | All imputed per DQ-08: `delisted.value` is a market cap in millions, not a return | Lehman's 55.6 confirms it. `exchange_at_delist` is the last primary venue, since a name that moved to OTC first still imputes by its listing venue |
+| M3 | Link to EDGAR | Same CIK and filing date, with period ends within 5 days (DQ-04). 87.6% of fundamentals rows link | The rest use filing date + 1 trading day, which is no earlier than the acceptance rule |
+| M3 | SEC bulk file | The 1.57 GB `submissions.zip` is reduced to 719,548 filing rows; the zip is not kept | Only the extract is used. Re-pulling costs one request |
+| M3 | Sharadar book equity | `equity` alone | The vendor has no deferred taxes or preferred stock. HML still reaches 0.987, so no substitute was tried |
+| M3 | SF1 rows filed on or before the period end | Dropped from `filings` | 27 ARQ rows. DQ-03 forbids them |
+| M3 | Extreme prices | Flagged, not removed (DQ-10): 7,604 rows, including bad ticks where a return reaches 999x | The spec forbids silent deletion. M4 evaluation must decide how flagged rows enter signals |
+| M3 | Low-risk family in the survivorship table | A 2x3 sort on trailing 36-month return volatility | AC-W-03 needs every family, and the signal library arrives in M4. The other families use the FF-convention factors. Rerun with library signals at M4 |
+| M3 | Trial log timing | Wired in at M3 rather than M4 | The first replication is already a trial. 20 rows so far: 6 factors, plus 14 for both survivorship modes |
+| M3 | Trial `git_sha` | The first 20 rows point at `6e55571`, a commit on the M3 branch | Squash merges drop it from `main`, but it stays reachable through `refs/pull/3/head` |
+| M3 | Run directories | `metrics.json` only so far; `config.yaml` and `manifest.json` come with FR-30 at M4 | The contract needs only the CSV and the series |
 
 ## Known limits on the free path
 
