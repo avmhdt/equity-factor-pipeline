@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import inspect
+import shutil
 import time
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 import structlog
 
-from efp.config import Experiment
+from efp.config import Experiment, pit_policy
 from efp.pipeline.cache import MANIFEST_NAME, StageCache, cache_key
 from efp.pipeline.manifest import OutputManifest, git_sha, now_utc, write_manifest
+from eqpit.pit.build import build_pit, read_pit_manifest
+from eqpit.pit.verify import write_reports
+from eqpit.providers.base import get_provider
+from eqpit.providers.synthetic import write_market
+from eqpit.synthetic import SyntheticConfig
 
 log = structlog.get_logger(__name__)
 
@@ -29,6 +36,7 @@ class Stage:
     fn: StageFn
     config: object = None
     inputs: tuple[str, ...] = ()
+    modules: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,20 +60,82 @@ class RunContext:
     raw_snapshots: Mapping[str, str] = field(default_factory=dict)
 
 
-def _write_resolved_config(path: Path, inputs: Mapping[str, Path]) -> int:
-    """Placeholder first stage until the PIT stages arrive in M2."""
-    (path / "started.txt").write_text("rebuild skeleton\n", encoding="utf-8", newline="\n")
-    return 1
+def build_stages(experiment: Experiment, raw_root: Path) -> list[Stage]:
+    """The stage list for an experiment, in dependency order.
+
+    The synthetic run generates its own raw data inside the cache; other providers read the
+    snapshots under ``raw_root``.
+    """
+    run = experiment.run
+    policy = pit_policy(experiment)
+    pit_config = {
+        "pit": experiment.pit.model_dump(mode="json"),
+        "run": run.model_dump(mode="json"),
+        "universe": experiment.universe.model_dump(mode="json"),
+    }
+    stages: list[Stage] = []
+    inputs: tuple[str, ...] = ()
+    if run.provider == "synthetic":
+        synthetic = SyntheticConfig(
+            seed=run.seed,
+            n_securities=int(experiment.synthetic.get("n_securities", 500)),
+            years=int(experiment.synthetic.get("years", 20)),
+            start_year=run.start.year,
+        )
+
+        def generate(path: Path, inputs: Mapping[str, Path]) -> int:
+            manifests = write_market(synthetic, path / "raw")
+            return sum(sum(item.row_counts.values()) for item in manifests)
+
+        stages.append(Stage("synthetic_raw", generate, asdict(synthetic), modules=("eqpit",)))
+        inputs = ("synthetic_raw",)
+
+    def build(path: Path, inputs: Mapping[str, Path]) -> int:
+        root = inputs["synthetic_raw"] / "raw" if "synthetic_raw" in inputs else raw_root
+        build_pit(get_provider(run.provider, root=root, policy=policy), path / "pit", policy)
+        return int(sum(read_pit_manifest(path / "pit")["row_counts"].values()))
+
+    def verify(path: Path, inputs: Mapping[str, Path]) -> int:
+        results = write_reports(inputs["pit"] / "pit", path / "tables")
+        failed = [item for item in results if item.status == "fail"]
+        if failed:
+            raise ValueError(f"hard data-quality failures: {failed}")
+        return len(results)
+
+    stages.append(Stage("pit", build, pit_config, inputs, modules=("eqpit",)))
+    stages.append(Stage("dq", verify, None, ("pit",), modules=("eqpit",)))
+    return stages
 
 
-def build_stages(experiment: Experiment) -> list[Stage]:
-    """The stage list for an experiment, in dependency order."""
-    return [Stage("resolve_config", _write_resolved_config, experiment.model_dump(mode="json"))]
+def publish(runs: Sequence[StageRun], data_dir: Path, tables_dir: Path) -> None:
+    """Copy the finished PIT tables and reports to their stable locations."""
+    by_name = {run.stage: run for run in runs}
+    target = data_dir / "processed" / "pit"
+    if target.exists():
+        shutil.rmtree(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(by_name["pit"].path / "pit", target)
+    shutil.copytree(by_name["dq"].path / "tables", tables_dir, dirs_exist_ok=True)
 
 
-def code_hash(fn: StageFn) -> str:
-    """Hash a stage function's source, so editing a stage invalidates it."""
-    return hashlib.sha256(inspect.getsource(fn).encode()).hexdigest()
+def _package_hash(name: str) -> str:
+    spec = importlib.util.find_spec(name)
+    if spec is None or spec.origin is None:
+        raise ValueError(f"cannot locate package {name}")
+    digest = hashlib.sha256()
+    package = Path(spec.origin).parent
+    for path in sorted(package.rglob("*.py")):
+        digest.update(path.relative_to(package).as_posix().encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def code_hash(stage: Stage) -> str:
+    """Hash a stage's source and its packages, so editing either invalidates the stage."""
+    digest = hashlib.sha256(inspect.getsource(stage.fn).encode())
+    for module in stage.modules:
+        digest.update(_package_hash(module).encode())
+    return digest.hexdigest()
 
 
 def run_stages(
@@ -89,7 +159,7 @@ def run_stages(
         if missing:
             raise ValueError(f"stage {stage.name} needs {missing} to run first")
         key = cache_key(
-            code_hash(stage.fn),
+            code_hash(stage),
             stage.config,
             [runs[name].key for name in stage.inputs],
             context.raw_snapshots,

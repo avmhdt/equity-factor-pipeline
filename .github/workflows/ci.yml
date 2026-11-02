@@ -79,3 +79,5 @@ jobs:
           python-version: "3.12"
       - run: uv sync --locked
       - run: uv run efp rebuild --config configs/synthetic.yaml
+      - run: uv run efp data verify --config configs/synthetic.yaml
+      - run: uv run pytest tests/golden

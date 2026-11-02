@@ -92,6 +92,7 @@ ignore_missing_imports = true
 minversion = "8.0"
 testpaths = ["tests", "packages/eqpit/tests"]
 addopts = "--strict-markers --import-mode=importlib"
+pythonpath = ["tests/unit", "tests/leakage"]
 markers = [
     "data: needs licensed raw data",
     "network: needs live EDGAR or French access",

@@ -11,6 +11,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from eqpit.pit.policy import PitPolicy
 from eqpit.settings import ProviderName
 
 
@@ -75,6 +76,30 @@ class Experiment(_Section):
     report: dict[str, Any] = {}
     synthetic: dict[str, Any] = {}
     edgar_free: dict[str, Any] = {}
+
+
+def pit_policy(experiment: Experiment) -> PitPolicy:
+    """The point-in-time rules an experiment sets."""
+    pit = experiment.pit
+    universe = experiment.universe
+    return PitPolicy(
+        extra_lag_trading_days=pit.extra_lag_trading_days,
+        annual_lag_months=pit.fallback_lag_months.annual,
+        quarterly_lag_months=pit.fallback_lag_months.quarterly,
+        imputation_nyse_amex=pit.delisting_imputation.performance_nyse_amex,
+        imputation_nasdaq=pit.delisting_imputation.performance_nasdaq,
+        imputation_other=pit.delisting_imputation.other,
+        min_price_usd=universe.min_price_usd,
+        exchanges=tuple(universe.exchanges),
+        share_types=tuple(universe.share_types),
+    )
+
+
+def load_xbrl_map(path: Path) -> dict[str, list[str]]:
+    """Load a canonical item to ordered tags map."""
+    with path.open(encoding="utf-8") as handle:
+        loaded: dict[str, list[str]] = yaml.safe_load(handle)
+    return loaded
 
 
 def load_config(path: Path) -> Experiment:

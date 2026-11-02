@@ -1,0 +1,12 @@
+security_id,company_id,cik,ticker,name,exchange,share_type,sic,valid_from,valid_to
+SYN:0,CIK:0,0,T0,Name 0,NYSE,common,2834,2024-01-29,
+SYN:1,CIK:1,1,T1,Name 1,NASDAQ,common,2834,2024-01-29,
+SYN:2,CIK:2,2,T2,Name 2,NYSE,common,2834,2024-01-29,
+SYN:3,CIK:3,3,T3,Name 3,NASDAQ,common,2834,2024-01-29,
+SYN:4,CIK:4,4,T4,Name 4,NYSE,common,2834,2024-01-29,
+SYN:5,CIK:5,5,AAA,Five,NASDAQ,common,3571,2024-01-29,2024-01-31
+SYN:5,CIK:5,5,BBB,Five,NASDAQ,common,3571,2024-02-01,
+SYN:6,CIK:6,6,T6,Name 6,NYSE,common,2834,2024-01-29,
+SYN:7,CIK:7,7,T7,Name 7,NASDAQ,common,2834,2024-01-29,
+SYN:8,CIK:8,8,T8,Name 8,NYSE,common,2834,2024-01-29,
+SYN:9,CIK:9,9,T9,Name 9,NASDAQ,common,2834,2024-01-29,

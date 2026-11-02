@@ -86,7 +86,8 @@ def test_pending_commands_say_when_they_arrive() -> None:
 def test_rebuild_then_cache_ls_and_prune(tmp_path: Path) -> None:
     config = tmp_path / "experiment.yaml"
     config.write_text(
-        "run: {name: t, seed: 1, provider: synthetic, start: 2001-01-31, end: 2002-12-31}\n",
+        "run: {name: t, seed: 1, provider: synthetic, start: 2001-01-31, end: 2002-12-31}\n"
+        "synthetic: {n_securities: 40, years: 2}\n",
         encoding="utf-8",
     )
     first = runner.invoke(app, ["rebuild", "--config", str(config)])
@@ -97,6 +98,6 @@ def test_rebuild_then_cache_ls_and_prune(tmp_path: Path) -> None:
     forced = runner.invoke(app, ["rebuild", "--config", str(config), "--force"])
     assert " ran " in forced.output
     listing = runner.invoke(app, ["cache", "ls"])
-    assert "resolve_config" in listing.output
+    assert "synthetic_raw" in listing.output
     pruned = runner.invoke(app, ["cache", "prune", "--keep-last", "1", "--raw", "--keep", "2"])
     assert pruned.exit_code == 0
