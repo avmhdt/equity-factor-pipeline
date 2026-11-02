@@ -1,0 +1,77 @@
+run:
+  name: headline
+  seed: 20261030
+  provider: sharadar             # sharadar | wrds | edgar_free | synthetic (EFP_PROVIDER overrides)
+  start: 1998-01-31              # earliest Sharadar month; verify at M3 (D-04)
+  end: 2025-12-31
+data:
+  root: ./data
+  snapshot: latest               # or an explicit snapshot id per dataset
+pit:
+  cutoff_time_et: "16:00"
+  extra_lag_trading_days: 1      # D-11
+  fallback_lag_months: {annual: 6, quarterly: 4}
+  delisting_imputation:
+    performance_nyse_amex: -0.30
+    performance_nasdaq: -0.55
+    other: 0.0
+universe:
+  size: 3000                     # D-03
+  variants: [1000]
+  min_price_usd: 1.0
+  exchanges: [NYSE, AMEX, NASDAQ]
+  share_types: [common]
+  survivors_only: false
+signals:
+  include: all                   # or a list of ids from configs/signals.yaml
+  winsorize: {lower: 0.01, upper: 0.99}
+  min_coverage: 0.5
+  min_names: 100
+  neutralize: [none, sector_size_beta]
+  sector_scheme: ff49            # D-07
+  beta_window_days: 252
+  beta_min_obs: 126
+evaluation:
+  horizons_months: [1, 2, 3, 6, 9, 12]
+  quantiles: 10
+  weighting: [ew, vw]
+  breakpoints: nyse              # nyse | all
+  nw_lags: auto                  # auto = floor(4*(T/100)^(2/9))
+  tstat_hurdle: 3.0
+replication:
+  french: {factors: [smb, hml, umd, rmw, cma], universe: all_eligible}
+  osap: {min_signals: 20}
+combination:
+  methods: [equal, ic_weighted, ridge]
+  ic_window_months: 36
+  ridge:
+    alphas: [0.1, 1.0, 10.0, 100.0, 1000.0]
+    train: expanding
+    min_train_months: 120
+    purge_months: 1
+backtest:
+  rebalance: monthly
+  construction: decile           # decile | signal_weighted
+  gross_leverage: 2.0
+  execution: [close, next_open, next_close, next_vwap_proxy]
+  headline_execution: next_vwap_proxy   # D-05
+  costs:                          # D-06
+    half_spread: {method: corwin_schultz, floor_bps: 2.0}
+    impact: {model: sqrt, coefficient: 1.0, adv_window_days: 20, vol_window_days: 20}
+    borrow:                     # same schedule as stat-arb-pairs D-07
+      source: assumed
+      tiers_pct_annual: [{max_rank: 500, rate: 0.25}, {max_rank: 1000, rate: 1.0}, {rate: 5.0}]
+    sensitivity_multipliers: [0.5, 1.0, 2.0]
+  capacity:
+    aum_min_usd: 1.0e7
+    aum_max_usd: 1.0e10
+    points: 25
+    max_adv_participation: 0.10
+attribution:
+  model: ff5_umd
+experiment_log:
+  path: results/trial_log.csv
+  runs_dir: results/runs
+report:
+  figures_dir: reports/figures
+  memos_dir: reports/memos
