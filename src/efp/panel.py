@@ -76,7 +76,27 @@ def build_panel(
     """
     rules = config or PanelConfig()
     needed = sorted({*ids, "beta", "size"})
-    raw = compute_signals(store, needed, dates, rules.universe)
+    return transform_panel(
+        compute_signals(store, needed, dates, rules.universe), store, ids, dates, rules
+    )
+
+
+def transform_panel(
+    raw: pl.DataFrame,
+    store: PitStore,
+    ids: Sequence[str],
+    dates: Sequence[date],
+    rules: PanelConfig,
+) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """Coverage, winsorizing, z-scores and neutralization for ``ids``.
+
+    Args:
+        raw: from ``compute_signals``, holding ``ids``, ``beta`` and ``size``.
+        store: for the universe.
+        ids: signals to finish.
+        dates: rebalance dates.
+        rules: panel rules.
+    """
     universe = universe_frame(store, dates, rules.universe)
     exposures = (
         raw.filter(pl.col("signal").is_in(["beta", "size"]))

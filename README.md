@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Status:** building. M1 to M5 are done: scaffolding, CI, the point-in-time layer, Sharadar data with Fama–French replication, the signal library with its evaluation stack, and OSAP replication with post-publication decay.
+**Status:** building. M1 to M6 are done: scaffolding, CI, the point-in-time layer, Sharadar data with Fama–French replication, the signal library with its evaluation stack, OSAP replication with post-publication decay, and the composite backtest with costs, capacity and attribution.
 
 | | |
 |---|---|
@@ -20,8 +20,8 @@
 - [x] A library of 20+ signals across value, momentum, quality, investment and low-risk, each winsorized and cross-sectionally z-scored. (FR-14, FR-15, AC-W-07)
 - [x] Neutralization to sector, size and beta, with a switch to show results before and after. (FR-16, AC-W-08)
 - [x] Evaluation: rank IC and IC information ratio, quantile spread returns, Fama–MacBeth regressions with Newey–West errors, turnover and decay curves. (FR-17 to FR-20, AC-W-09)
-- [ ] A combination layer (equal weight, IC weighted, ridge) feeding a cost-aware long–short backtest.
-- [ ] One command rebuilds every result from raw files; intermediate data is cached and versioned.
+- [x] A combination layer (equal weight, IC weighted, ridge) feeding a cost-aware long–short backtest. (FR-22, FR-23, AC-W-10, AC-W-11)
+- [x] One command rebuilds every result from raw files; intermediate data is cached and versioned. (FR-29, AC-W-12)
 
 ## Data
 
@@ -49,9 +49,9 @@ Raw and licensed data live in `data/`, which is git-ignored. Only download scrip
 ### Impresses hirers
 
 - [x] Replicate 20+ published anomalies and show post-publication decay, in line with McLean and Pontiff (2016). (FR-26, FR-27, AC-H-01, AC-H-02)
-- [ ] Judge significance against the t > 3.0 multiple-testing hurdle of Harvey, Liu and Zhu (2016), not t > 2.
-- [ ] Attribute the combined signal to FF5 plus momentum and report the residual alpha honestly.
-- [ ] Net-of-cost results with a capacity estimate: the AUM at which costs erase half the alpha.
+- [x] Judge significance against the t > 3.0 multiple-testing hurdle of Harvey, Liu and Zhu (2016), not t > 2. (FR-28, AC-H-03)
+- [x] Attribute the combined signal to FF5 plus momentum and report the residual alpha honestly. (FR-25, AC-H-04)
+- [x] Net-of-cost results with a capacity estimate: the AUM at which costs erase half the alpha. (FR-23, FR-24, AC-H-05, AC-H-07)
 - [ ] A two-page memo per signal family: hypothesis, evidence, and why it might stop working.
 
 ## Questions this project must answer

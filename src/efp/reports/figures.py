@@ -81,3 +81,44 @@ def post_publication_bars(table: pl.DataFrame, path: Path, dev_only: bool = Fals
         path,
         dev_only,
     )
+
+
+def capacity_lines(curve: pl.DataFrame, target: float, path: Path, dev_only: bool = False) -> None:
+    """Net alpha against fund size, one line per impact multiplier, with the half-alpha level.
+
+    Args:
+        curve: ``impact_multiplier``, ``aum``, ``net_alpha_annual``.
+        target: half the zero-cost alpha, in decimals per year.
+        path: output file.
+        dev_only: watermark the figure (DQ-16).
+    """
+    figure, axes = _axes(7.0, 3.8)
+    styles = {0.5: (MUTED, "--"), 1.0: (SERIES, "-"), 2.0: (SECOND, "--")}
+    for (multiplier,), part in curve.sort("impact_multiplier", "aum").group_by(
+        ["impact_multiplier"], maintain_order=True
+    ):
+        color, line = styles.get(float(multiplier), (MUTED, ":"))
+        axes.plot(
+            part["aum"].to_list(),
+            [value * 100.0 for value in part["net_alpha_annual"].to_list()],
+            color=color,
+            linestyle=line,
+            linewidth=2.0 if multiplier == 1.0 else 1.2,
+            label=f"Impact x{multiplier:g}",
+        )
+    axes.axhline(target * 100.0, color=INK, linewidth=0.8)
+    axes.text(
+        curve["aum"].min(),  # type: ignore[arg-type]
+        target * 100.0,
+        " half the zero-cost alpha",
+        color=INK,
+        fontsize=8,
+        va="bottom",
+    )
+    axes.set_xscale("log")
+    axes.grid(axis="y", color=GRID, linewidth=0.5)
+    axes.set_axisbelow(True)
+    axes.set_xlabel("Fund size, USD", color=MUTED, fontsize=8)
+    axes.set_ylabel("Net FF5 + UMD alpha, % per year", color=MUTED, fontsize=8)
+    axes.legend(frameon=False, fontsize=8, loc="lower right", labelcolor=INK)
+    _finish(figure, axes, "Net alpha by fund size", path, dev_only)

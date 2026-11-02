@@ -11,6 +11,10 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
+from efp.backtest.capacity import CapacityConfig
+from efp.backtest.costs import CostConfig
+from efp.backtest.run import BacktestConfig
+from efp.combine.walkforward import CombineConfig, Method, composite_name, variant_name
 from efp.evaluation.run import EvaluationConfig
 from efp.panel import PanelConfig
 from eqpit.pit.policy import PitPolicy
@@ -97,12 +101,13 @@ def pit_policy(experiment: Experiment) -> PitPolicy:
     )
 
 
-def panel_config(experiment: Experiment | None) -> PanelConfig:
-    """Panel rules; defaults when no experiment is given."""
+def panel_config(experiment: Experiment | None, signal: str | None = None) -> PanelConfig:
+    """Panel rules; ``signals.overrides.<id>`` replaces ``winsorize`` for one signal."""
     if experiment is None:
         return PanelConfig()
     section = experiment.signals
-    bounds = section.get("winsorize", {})
+    override = section.get("overrides", {}).get(signal, {})
+    bounds = override.get("winsorize", section.get("winsorize", {}))
     return PanelConfig(
         lower=float(bounds.get("lower", 0.01)),
         upper=float(bounds.get("upper", 0.99)),
@@ -122,6 +127,83 @@ def evaluation_config(experiment: Experiment | None) -> EvaluationConfig:
         breakpoints=str(section.get("breakpoints", "nyse")),
         universes=(experiment.universe.size, *experiment.universe.variants),
         neutralize=tuple(experiment.signals.get("neutralize", ("none", "sector_size_beta"))),
+    )
+
+
+def combine_config(experiment: Experiment) -> CombineConfig:
+    """Composite choices."""
+    section = experiment.combination
+    ridge = section.get("ridge", {})
+    defaults = CombineConfig()
+    return CombineConfig(
+        ic_window_months=int(section.get("ic_window_months", defaults.ic_window_months)),
+        alphas=tuple(float(value) for value in ridge.get("alphas", defaults.alphas)),
+        min_train_months=int(ridge.get("min_train_months", defaults.min_train_months)),
+        purge_months=int(ridge.get("purge_months", defaults.purge_months)),
+    )
+
+
+def combine_methods(experiment: Experiment) -> tuple[Method, ...]:
+    """Composite methods to build."""
+    return tuple(experiment.combination.get("methods", ("equal", "ic_weighted", "ridge")))
+
+
+def headline_method(experiment: Experiment) -> Method:
+    """The method behind the headline composite."""
+    return experiment.combination.get("headline_method", "equal")  # type: ignore[no-any-return]
+
+
+def headline_composite(experiment: Experiment) -> tuple[str, str]:
+    """The composite the headline numbers quote: its name and neutralization mode."""
+    mode = str(experiment.combination.get("headline_neutralize", "sector_size_beta"))
+    return composite_name(headline_method(experiment), mode), mode
+
+
+def capacity_composites(experiment: Experiment) -> list[str]:
+    """The headline composite, then each universe variant as a sensitivity."""
+    headline, _ = headline_composite(experiment)
+    return [headline, *[variant_name(headline, size) for size in experiment.universe.variants]]
+
+
+def backtest_config(experiment: Experiment) -> BacktestConfig:
+    """Backtest choices: D-05 and D-06 with the spec's defaults."""
+    section = experiment.backtest
+    costs = section.get("costs", {})
+    impact = costs.get("impact", {})
+    tiers = costs.get("borrow", {}).get("tiers_pct_annual")
+    capacity = section.get("capacity", {})
+    defaults = BacktestConfig()
+    cost_defaults = defaults.costs
+    grid = defaults.capacity
+    return BacktestConfig(
+        construction=section.get("construction", defaults.construction),
+        gross=float(section.get("gross_leverage", defaults.gross)),
+        quantiles=int(experiment.evaluation.get("quantiles", defaults.quantiles)),
+        executions=tuple(section.get("execution", defaults.executions)),
+        headline_execution=section.get("headline_execution", defaults.headline_execution),
+        aum=float(section.get("headline_aum_usd", defaults.aum)),
+        costs=CostConfig(
+            floor_bps=float(costs.get("half_spread", {}).get("floor_bps", cost_defaults.floor_bps)),
+            impact_coefficient=float(impact.get("coefficient", cost_defaults.impact_coefficient)),
+            adv_days=int(impact.get("adv_window_days", cost_defaults.adv_days)),
+            vol_days=int(impact.get("vol_window_days", cost_defaults.vol_days)),
+            borrow_tiers=(
+                tuple((int(tier["max_rank"]), float(tier["rate"])) for tier in tiers[:-1])
+                if tiers
+                else cost_defaults.borrow_tiers
+            ),
+            borrow_rest=float(tiers[-1]["rate"]) if tiers else cost_defaults.borrow_rest,
+        ),
+        impact_multipliers=tuple(
+            float(value)
+            for value in costs.get("sensitivity_multipliers", defaults.impact_multipliers)
+        ),
+        capacity=CapacityConfig(
+            aum_min=float(capacity.get("aum_min_usd", grid.aum_min)),
+            aum_max=float(capacity.get("aum_max_usd", grid.aum_max)),
+            points=int(capacity.get("points", grid.points)),
+            max_participation=float(capacity.get("max_adv_participation", grid.max_participation)),
+        ),
     )
 
 

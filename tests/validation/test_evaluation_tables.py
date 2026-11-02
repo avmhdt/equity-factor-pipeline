@@ -14,6 +14,8 @@ pytestmark = pytest.mark.data
 
 TABLES = Path(__file__).parents[2] / "results" / "tables"
 MODES = {"none", "sector_size_beta"}
+SPANNED = {"ind_mom"}
+"""One value per industry, so FF-49 dummies leave nothing to neutralize."""
 
 
 def read(name: str) -> pl.DataFrame:
@@ -28,13 +30,14 @@ def test_every_signal_appears_in_both_modes(table: str) -> None:
     frame = read(table)
     assert set(frame["signal"].to_list()) == set(registered())
     pairs = frame.select("signal", "neutralize").unique()
-    assert pairs.height == 2 * len(registered())
+    assert pairs.height == 2 * len(registered()) - len(SPANNED)
     assert set(pairs["neutralize"].to_list()) == MODES
+    assert pairs.filter(pl.col("signal").is_in(list(SPANNED)))["neutralize"].to_list() == ["none"]
 
 
 def test_fama_macbeth_covers_every_signal_alone_in_both_modes() -> None:
     frame = read("fama_macbeth").filter(pl.col("model").eq("univariate"))
-    assert frame.height == 2 * len(registered())
+    assert frame.height == 2 * len(registered()) - len(SPANNED)
 
 
 def test_ic_summary_has_a_full_sample() -> None:

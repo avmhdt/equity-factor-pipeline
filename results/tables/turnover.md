@@ -14,14 +14,13 @@
 | ebitda_ev | 0.956041 | 0.423123 | sector_size_beta |
 | ep | 0.963185 | 0.396275 | none |
 | ep | 0.949455 | 0.42824 | sector_size_beta |
-| fscore | 0.943241 | 0.282644 | none |
+| fscore | 0.943241 | 0.270135 | none |
 | fscore | 0.9279 | 0.329967 | sector_size_beta |
 | gp_at | 0.994433 | 0.221029 | none |
 | gp_at | 0.988007 | 0.251294 | sector_size_beta |
 | high_52w | 0.825342 | 0.960386 | none |
 | high_52w | 0.833446 | 0.773258 | sector_size_beta |
 | ind_mom | 0.790607 | 0.879127 | none |
-| ind_mom | 0.280025 | 1.479146 | sector_size_beta |
 | inv_at | 0.943994 | 0.333511 | none |
 | inv_at | 0.929306 | 0.376531 | sector_size_beta |
 | ivol | 0.656186 | 1.205865 | none |

@@ -283,6 +283,16 @@ class LabelStore:
         returns = monthly_returns(prices, self._read("delistings"), ends, include_delisting)
         return returns.filter(pl.col("month").is_between(start, end))
 
+    def daily_prices(self, columns: Sequence[str], ids: Sequence[str], first: date) -> pl.DataFrame:
+        """Daily rows for a backtest: some columns, some securities, from ``first`` on."""
+        return (
+            pl.scan_parquet(self.root / "prices_daily" / "**" / "*.parquet")
+            .filter(pl.col("date") >= first, pl.col("security_id").is_in(list(ids)))
+            .select(*columns)
+            .sort("security_id", "date")
+            .collect()
+        )
+
     def universe_history(self) -> pl.DataFrame:
         """Every ``universe_monthly`` row, including the ``delisted_after`` diagnostic."""
         return self._read("universe_monthly").sort("asof", "rank")

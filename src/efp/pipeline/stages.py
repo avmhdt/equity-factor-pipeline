@@ -122,6 +122,8 @@ def _package_hash(name: str) -> str:
     spec = importlib.util.find_spec(name)
     if spec is None or spec.origin is None:
         raise ValueError(f"cannot locate package {name}")
+    if spec.submodule_search_locations is None:
+        return hashlib.sha256(Path(spec.origin).read_bytes()).hexdigest()
     digest = hashlib.sha256()
     package = Path(spec.origin).parent
     for path in sorted(package.rglob("*.py")):

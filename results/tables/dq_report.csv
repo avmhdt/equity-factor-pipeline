@@ -1,6 +1,8 @@
 check,status,hard,detail
 DQ-01,pass,true,0 null available_at in securities
 DQ-01,pass,true,0 null available_at in prices_daily
+DQ-01,pass,true,0 null available_at in prices_monthly
+DQ-01,pass,true,0 null available_at in market_daily
 DQ-01,pass,true,0 null available_at in delistings
 DQ-01,pass,true,0 null available_at in corp_actions
 DQ-01,pass,true,0 null available_at in filings

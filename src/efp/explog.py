@@ -106,13 +106,39 @@ def _base_row(log_path: Path, family: str, params: dict[str, object]) -> dict[st
     }
 
 
-def log_trial(record: TrialRecord, log_path: Path, runs_dir: Path) -> str:
-    """Write the series, then append one row; return the run id."""
+def _logged_run(log_path: Path, row: dict[str, str], n_obs: int, sharpe: str) -> str | None:
+    """The run id of an identical trial already in the log."""
+    if not log_path.exists():
+        return None
+    with log_path.open(encoding="utf-8", newline="") as handle:
+        for logged in csv.DictReader(handle):
+            if (
+                logged["strategy_family"] == row["strategy_family"]
+                and logged["params_json"] == row["params_json"]
+                and logged["n_obs"] == str(n_obs)
+                and logged["sharpe_annual"] == sharpe
+            ):
+                return logged["run_id"]
+    return None
+
+
+def log_trial(record: TrialRecord, log_path: Path, runs_dir: Path, once: bool = False) -> str:
+    """Write the series, then append one row; return the run id.
+
+    With ``once``, a trial already logged with the same parameters and result adds nothing:
+    a rebuild repeats trials, and a repeat of the same numbers is not a new test.
+    """
     row = _base_row(log_path, record.strategy_family, record.params)
     series = record.returns.sort("date")
     dates: list[date] = series["date"].to_list()
     returns: list[float] = series["ret"].to_list()
     periods = PERIODS_PER_YEAR[record.freq]
+    deviation = statistics.stdev(returns)
+    sharpe = statistics.fmean(returns) / deviation * math.sqrt(periods) if deviation > 0 else 0.0
+    if once:
+        logged = _logged_run(log_path, row, len(returns), f"{sharpe:.10g}")
+        if logged is not None:
+            return logged
     target = runs_dir / row["run_id"] / "returns.parquet"
     target.parent.mkdir(parents=True, exist_ok=True)
     columns: dict[str, pa.Array] = {
@@ -122,8 +148,6 @@ def log_trial(record: TrialRecord, log_path: Path, runs_dir: Path) -> str:
     if "ret_gross" in series.columns:
         columns["ret_gross"] = pa.array(series["ret_gross"].to_list(), pa.float64())
     pq.write_table(pa.table(columns), target)
-    deviation = statistics.stdev(returns)
-    sharpe = statistics.fmean(returns) / deviation * math.sqrt(periods) if deviation > 0 else 0.0
     row |= {
         "start": dates[0].isoformat(),
         "end": dates[-1].isoformat(),

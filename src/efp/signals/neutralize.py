@@ -8,6 +8,9 @@ import numpy as np
 import polars as pl
 
 Mode = Literal["none", "sector", "sector_size_beta"]
+SPANNED = 1e-8
+"""Below this share of the input's deviation, residuals are rounding error, not a signal. An
+industry-level signal such as ``ind_mom`` is spanned by the sector dummies."""
 
 
 def _residuals(y: np.ndarray, sectors: np.ndarray, others: list[np.ndarray]) -> np.ndarray:
@@ -18,7 +21,7 @@ def _residuals(y: np.ndarray, sectors: np.ndarray, others: list[np.ndarray]) -> 
     coefficients, *_ = np.linalg.lstsq(design, y, rcond=None)
     fitted = y - design @ coefficients
     deviation = float(fitted.std(ddof=1))
-    if deviation <= 0.0:
+    if deviation <= SPANNED * float(y.std(ddof=1)):
         return np.full(len(y), np.nan)
     standardised: np.ndarray = (fitted - fitted.mean()) / deviation
     return standardised
@@ -34,7 +37,8 @@ def neutralize(df: pl.DataFrame, col: str, mode: Mode, exempt_size: bool = False
             also removes log market cap and beta.
         exempt_size: leave log market cap out; the size signal is its own exposure.
 
-    Rows missing an exposure get a null. Output order follows ``asof`` then the input order.
+    Rows missing an exposure get a null, as does a date whose exposures span the signal.
+    Output order follows ``asof`` then the input order.
     """
     if mode == "none":
         return df.with_columns(pl.col(col).alias("z_neutral"))
