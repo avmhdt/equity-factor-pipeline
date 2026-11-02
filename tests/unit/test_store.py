@@ -146,6 +146,41 @@ def test_signal_view_refuses_later_dates(small_store: PitStore, asof: date) -> N
     assert not view.prices(asof, 5).is_empty()
 
 
+def test_monthly_returns_stop_at_the_as_of_month(small_store: PitStore, asof: date) -> None:
+    frame = small_store.monthly(asof, 12)
+    assert frame["month"].max() == asof
+    assert frame["month"].n_unique() == 12
+    assert frame["available_at"].max() <= small_store.cutoff(asof)
+    with pytest.raises(FutureAccessError):
+        small_store.for_signals(asof).monthly(date(2016, 1, 29), 3)
+
+
+def test_monthly_returns_compound_the_daily_ones(small_store: PitStore, asof: date) -> None:
+    security = small_store.universe(asof, 1)["security_id"][0]
+    daily = small_store.prices(asof, 40, [security]).filter(pl.col("date") > date(2015, 5, 29))
+    expected = (1.0 + daily["ret"]).product() - 1.0
+    monthly = small_store.monthly(asof, 1, [security])
+    assert monthly["ret"][0] == pytest.approx(expected)
+
+
+def test_market_return_is_visible_through_the_cutoff_only(
+    small_store: PitStore, asof: date
+) -> None:
+    frame = small_store.market(asof, 21)
+    assert frame.height == 21
+    assert frame["date"].max() == asof
+    assert frame["available_at"].max() <= small_store.cutoff(asof)
+    with pytest.raises(FutureAccessError):
+        small_store.for_signals(asof).market(date(2016, 1, 29), 3)
+
+
+def test_a_view_remembers_reads_within_a_date(small_store: PitStore, asof: date) -> None:
+    view = small_store.for_signals(asof)
+    assert view.prices(asof, 21).equals(view.prices(asof, 21))
+    first = view.fundamentals(asof, ["revenue"], history_periods=4)
+    assert first.equals(view.fundamentals(asof, ["revenue"], history_periods=4))
+
+
 def test_labels_are_separate(small_store: PitStore) -> None:
     labels = small_store.labels()
     forward = labels.forward_returns((1, 3))

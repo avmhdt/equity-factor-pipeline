@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import date
+from functools import partial
 from pathlib import Path
 from typing import Annotated, Literal, NoReturn
 
@@ -10,12 +12,23 @@ import polars as pl
 import polars.selectors
 import typer
 
-from efp.config import Experiment, config_hash, load_config, load_xbrl_map, pit_policy
+from efp.config import (
+    Experiment,
+    config_hash,
+    evaluation_config,
+    load_config,
+    load_xbrl_map,
+    panel_config,
+    pit_policy,
+    trial_log_path,
+)
 from efp.doctor import run_doctor
 from efp.evaluation.french import compare, replicate
+from efp.evaluation.run import evaluate_panel, merge_rows, signals_argument
 from efp.evaluation.survivorship import bias_table, delisted_names_by_year, series_by_mode
-from efp.explog import TrialRecord, log_trial
+from efp.explog import TrialRecord, export_log, log_trial, summarize_log
 from efp.logs import configure_logging
+from efp.panel import all_signals, build_panel, read_panel, write_panel
 from efp.pipeline.cache import StageCache
 from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
 from efp.settings import ProviderName, Settings, get_settings
@@ -204,6 +217,20 @@ def universe_build(config: ConfigOption = None, log_level: LogLevelOption = None
     typer.echo(f"universe_monthly: {rows:,} rows")
 
 
+def _dates(store: PitStore, experiment: Experiment | None) -> list[date]:
+    """Rebalance dates: the experiment's window, else the whole sample."""
+    prices = pl.scan_parquet(store.root / "prices_monthly" / "**" / "*.parquet")
+    bounds = prices.select(
+        pl.col("month").min().alias("first"), pl.col("month").max().alias("last")
+    ).collect()
+    first: date = bounds["first"][0]
+    last: date = bounds["last"][0]
+    if experiment is not None:
+        first = max(first, experiment.run.start)
+        last = min(last, experiment.run.end)
+    return store.month_ends(first, last)
+
+
 @signals_app.command("compute")
 def signals_compute(
     only: Annotated[str | None, typer.Option("--only")] = None,
@@ -211,20 +238,53 @@ def signals_compute(
     log_level: LogLevelOption = None,
 ) -> None:
     """Compute the signal panel."""
-    _start(config, log_level)
-    _pending("M4")
+    settings, experiment = _start(config, log_level)
+    data_dir = _data_dir(settings, experiment)
+    store = PitStore.open(data_dir / "processed" / "pit")
+    ids = signals_argument(only) or list(all_signals())
+    panel, dropped = build_panel(store, ids, _dates(store, experiment), panel_config(experiment))
+    write_panel(panel, data_dir / "processed" / "signals")
+    provider = str(read_pit_manifest(store.root)["provider"])
+    name = experiment.run.name if experiment is not None else provider
+    _write_table(dropped, _tables_dir(data_dir, provider, name), "signal_coverage_drops")
+    typer.echo(f"signals: {panel.height:,} rows, {dropped.height} signal-dates dropped")
 
 
 @app.command()
 def evaluate(
     signals: Annotated[str | None, typer.Option("--signals")] = None,
-    neutralize: Annotated[str, typer.Option("--neutralize")] = "none",
+    neutralize: Annotated[str, typer.Option("--neutralize")] = "both",
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
     """IC, spreads, Fama-MacBeth, turnover and decay tables; logs trials."""
-    _start(config, log_level)
-    _pending("M4")
+    settings, experiment = _start(config, log_level)
+    data_dir = _data_dir(settings, experiment)
+    store = PitStore.open(data_dir / "processed" / "pit")
+    panel = read_panel(data_dir / "processed" / "signals", signals_argument(signals))
+    provider = str(read_pit_manifest(store.root)["provider"])
+    name = experiment.run.name if experiment is not None else provider
+    rules = evaluation_config(experiment)
+    if neutralize != "both":
+        rules = replace(rules, neutralize=(neutralize,))
+    logger = None
+    if provider in ("sharadar", "wrds", "synthetic"):
+        log_path = trial_log_path(experiment, provider, data_dir)
+        logger = partial(_log_record, log_path=log_path)
+    tables = evaluate_panel(panel, store, rules, provider, logger)
+    directory = _tables_dir(data_dir, provider, name)
+    chosen = signals_argument(signals)
+    for table_name, table in tables.items():
+        existing = directory / f"{table_name}.csv"
+        merged = table
+        if chosen is not None and existing.is_file():
+            merged = merge_rows(pl.read_csv(existing), table, chosen)
+        _write_table(merged, directory, table_name)
+    typer.echo(f"wrote {len(tables)} tables to {directory}")
+
+
+def _log_record(record: TrialRecord, log_path: Path) -> str:
+    return log_trial(record, log_path, log_path.parent / "runs")
 
 
 def _write_table(frame: pl.DataFrame, directory: Path, name: str) -> None:
@@ -414,7 +474,17 @@ def explog(
 ) -> None:
     """Inspect or export the trial log."""
     _start(config, log_level)
-    _pending("M4")
+    log_path = Path("results") / "trial_log.csv"
+    if action == "show":
+        summary = summarize_log(log_path)
+        for family, rows, failed in summary.iter_rows():
+            typer.echo(f"{family:<14} {rows:>6} trials {failed:>4} failed")
+        return
+    if dest is None:
+        typer.echo("--dest is required for export", err=True)
+        raise typer.Exit(code=2)
+    copied = export_log(log_path, dest)
+    typer.echo(f"exported {copied} return files to {dest}")
 
 
 if __name__ == "__main__":

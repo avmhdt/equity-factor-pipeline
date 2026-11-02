@@ -99,11 +99,27 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | M3 | SEC bulk file | The 1.57 GB `submissions.zip` is reduced to 719,548 filing rows; the zip is not kept | Only the extract is used. Re-pulling costs one request |
 | M3 | Sharadar book equity | `equity` alone | The vendor has no deferred taxes or preferred stock. HML still reaches 0.987, so no substitute was tried |
 | M3 | SF1 rows filed on or before the period end | Dropped from `filings` | 27 ARQ rows. DQ-03 forbids them |
-| M3 | Extreme prices | Flagged, not removed (DQ-10): 7,604 rows, including bad ticks where a return reaches 999x | The spec forbids silent deletion. M4 evaluation must decide how flagged rows enter signals |
+| M3 | Extreme prices | Flagged, not removed (DQ-10): 7,604 rows, including bad ticks where a return reaches 999x | The spec forbids silent deletion. M4 measured the effect on labels and found it negligible |
 | M3 | Low-risk family in the survivorship table | A 2x3 sort on trailing 36-month return volatility | AC-W-03 needs every family, and the signal library arrives in M4. The other families use the FF-convention factors. Rerun with library signals at M4 |
 | M3 | Trial log timing | Wired in at M3 rather than M4 | The first replication is already a trial. 20 rows so far: 6 factors, plus 14 for both survivorship modes |
 | M3 | Trial `git_sha` | The first 20 rows point at `6e55571`, a commit on the M3 branch | Squash merges drop it from `main`, but it stays reachable through `refs/pull/3/head` |
-| M3 | Run directories | `metrics.json` only so far; `config.yaml` and `manifest.json` come with FR-30 at M4 | The contract needs only the CSV and the series |
+| M3 | Run directories | M3's 20 rows have `metrics.json` only. From M4 each run also has `config.yaml` and `manifest.json` | Rows are never rewritten |
+| M4 | Signal months | Month 0 ends at the rebalance date. `mom_12_1` is months 11 to 1, `mom_6_1` 5 to 1, `ltr_36_13` 35 to 12, `ind_mom` 5 to 0, `str_1m` month 0 | Spec uses `t` for the holding month in some rows and the latest month in others. These match UMD's convention, and `str_1m` as the month just ended |
+| M4 | `fwd_ret` and rebalance dates | `prices_monthly` and `market_daily` added as gated PIT tables | Signals need monthly returns and a market return without rescanning daily prices. Neither carries anything later than its own close |
+| M4 | Market return | Cap-weighted over the prior month end's top 3,000, by prior-day market cap | FR-16's "own cap-weighted universe return" |
+| M4 | Read speed | `PitStore` shares eager tables with its signal views, and a view remembers reads for one date. Views see fundamentals from the last 6 years | 26 signals over 345 months took 20 minutes at 8 threads. Every read still filters on `available_at` |
+| M4 | Staleness | A fundamental older than 550 days at the rebalance date is treated as missing | A company that stopped filing should not carry an old value forever |
+| M4 | TTM | Four quarters spanning 255 to 295 days, all public at the cutoff | DQ-06 |
+| M4 | Winsorize bounds | Sample values (nearest rank, outward), not interpolated | Hypothesis found interpolation is not idempotent: `[0,0,0,0,1]` shrinks again on a second pass. The spec requires idempotence |
+| M4 | Fama-MacBeth variance | `linearmodels` is the source. The manual cross-check uses T-1 to match it | Without that they differ by exactly sqrt(T/(T-1)) |
+| M4 | Discrete scores | Spreads run from the lowest to the highest filled quantile | `fscore` takes 10 values, so deciles can be empty. Dates were being skipped, which removed the signal from the table |
+| M4 | Extreme prices in labels | No special handling | Measured in the top 3,000: 6 of 1.03M stock-months exceed +500%, the largest is 16x in January 2021, and clipping at +500% moves the equal-weight mean by 0.02% a year. The bad ticks sit below the $1 floor |
+| M4 | `inv_at` | Net PP&E stands in for gross on Sharadar | The vendor has no gross PP&E |
+| M4 | `accruals` | Taxes payable counted as unchanged on Sharadar | The vendor has no such item |
+| M4 | `fscore` | Uses the last two fiscal years; a missing comparison scores 0 | Piotroski's definition is annual |
+| M4 | `sue` | Needs 6 of the last 8 year-over-year EPS changes | EPS is as reported, so a split inside the window adds noise |
+| M4 | Trials | One row per long-short spread: 26 signals, 2 neutralization modes, 2 universes, 2 weightings. Each is logged in its family | Every spread appears in a table a human reads. 212 rows here, 232 in total with M3's 20. `fscore`'s 4 neutralized spreads appear twice: they ran first, then again in the rerun that fixed its raw spreads |
+| M4 | `efp evaluate --signals` | Replaces those signals' rows in the tables and leaves the rest | Re-evaluating one signal should not re-log the others |
 
 ## Known limits on the free path
 

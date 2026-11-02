@@ -53,6 +53,16 @@ def unregister(signal_id: str) -> None:
     del _REGISTRY[signal_id]
 
 
+def spec_of(signal_id: str) -> SignalSpec:
+    """The registry entry for one signal."""
+    return _REGISTRY[signal_id][0]
+
+
+def signal_function(signal_id: str) -> SignalFn:
+    """The function behind one signal."""
+    return _REGISTRY[signal_id][1]
+
+
 def registered() -> tuple[str, ...]:
     """Ids of all registered signals, sorted."""
     return tuple(sorted(_REGISTRY))
@@ -68,10 +78,11 @@ def compute_signals(store: PitStore, ids: Sequence[str], dates: Sequence[date]) 
         Rows of ``asof``, ``security_id``, ``signal``, ``raw`` and ``input_available_at``.
     """
     frames: list[pl.DataFrame] = []
-    for signal_id in ids:
-        _, fn = _REGISTRY[signal_id]
-        for asof in dates:
-            computed = fn(store.for_signals(asof), asof)
+    for asof in dates:
+        view = store.for_signals(asof)
+        for signal_id in ids:
+            _, fn = _REGISTRY[signal_id]
+            computed = fn(view, asof)
             frames.append(
                 computed.select(
                     pl.lit(asof, dtype=pl.Date).alias("asof"),

@@ -94,6 +94,32 @@ def baseline(small_store: PitStore) -> pl.DataFrame:
     return compute_signals(small_store, list(PROBES), DATES)
 
 
+@pytest.fixture(scope="module")
+def library_ids() -> list[str]:
+    return [name for name in registry.registered() if not name.startswith(("p_", "canary"))]
+
+
+@pytest.fixture(scope="module")
+def library(small_store: PitStore, library_ids: list[str]) -> pl.DataFrame:
+    return compute_signals(small_store, library_ids, DATES)
+
+
+def test_every_library_signal_is_public_at_its_cutoff(library: pl.DataFrame) -> None:
+    assert library["signal"].n_unique() == 26
+    assert_no_feature_after_cutoff(library)
+
+
+def test_the_library_ignores_every_later_row(
+    small_provider: SyntheticProvider,
+    library: pl.DataFrame,
+    library_ids: list[str],
+    tmp_path_factory: pytest.TempPathFactory,
+) -> None:
+    root = tmp_path_factory.mktemp("corrupted-library") / "pit"
+    build_pit(CorruptedProvider(small_provider, BOUNDARY), root)
+    assert_identical(library, compute_signals(PitStore.open(root), library_ids, DATES))
+
+
 def test_no_feature_after_cutoff(baseline: pl.DataFrame) -> None:
     assert baseline.height > 100
     assert set(baseline["signal"].unique().to_list()) == set(PROBES)

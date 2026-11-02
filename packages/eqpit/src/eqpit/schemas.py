@@ -46,6 +46,21 @@ PRICES_DAILY: Schema = {
     "available_at": INSTANT,
 }
 
+PRICES_MONTHLY: Schema = {
+    "security_id": pl.String,
+    "month": pl.Date,
+    "ret": pl.Float64,
+    "days": pl.Int32,
+    "available_at": INSTANT,
+}
+
+MARKET_DAILY: Schema = {
+    "date": pl.Date,
+    "ret": pl.Float64,
+    "names": pl.Int32,
+    "available_at": INSTANT,
+}
+
 DELISTINGS: Schema = {
     "security_id": pl.String,
     "delist_date": pl.Date,
@@ -133,6 +148,8 @@ SIGNALS: Schema = {
 TABLES: Mapping[str, Schema] = {
     "securities": SECURITIES,
     "prices_daily": PRICES_DAILY,
+    "prices_monthly": PRICES_MONTHLY,
+    "market_daily": MARKET_DAILY,
     "delistings": DELISTINGS,
     "corp_actions": CORP_ACTIONS,
     "filings": FILINGS,
@@ -144,6 +161,8 @@ TABLES: Mapping[str, Schema] = {
 GATED_TABLES = (
     "securities",
     "prices_daily",
+    "prices_monthly",
+    "market_daily",
     "delistings",
     "corp_actions",
     "filings",

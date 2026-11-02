@@ -1,0 +1,17 @@
+{
+  "n_obs": 330,
+  "params": {
+    "breakpoints": "nyse",
+    "construction": "q10_top_minus_bottom",
+    "costs": "none",
+    "execution": "close",
+    "freq": "M",
+    "net": false,
+    "neutralization": "sector_size_beta",
+    "provider": "sharadar",
+    "signal": "ind_mom",
+    "universe": 1000,
+    "weighting": "ew"
+  },
+  "sharpe_annual": -0.6474348411698119
+}

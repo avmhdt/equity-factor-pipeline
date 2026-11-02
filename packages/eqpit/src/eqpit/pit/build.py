@@ -13,6 +13,7 @@ import polars as pl
 import structlog
 
 from eqpit import calendar
+from eqpit.pit.aggregates import build_market_daily, build_monthly_prices
 from eqpit.pit.labels import build_forward_returns
 from eqpit.pit.policy import PitPolicy
 from eqpit.pit.universe import build_universe
@@ -74,6 +75,12 @@ def build_pit(provider: DataProvider, out: Path, policy: PitPolicy | None = None
     universe = build_universe(prices, securities, delistings, ends, rules)
     _write_table(universe, out, "universe_monthly")
     log.info("pit_table", table="universe_monthly", rows=universe.height)
+    monthly = build_monthly_prices(prices, ends)
+    _write_table(monthly, out, "prices_monthly")
+    log.info("pit_table", table="prices_monthly", rows=monthly.height)
+    market = build_market_daily(prices, universe, ends)
+    _write_table(market, out, "market_daily")
+    log.info("pit_table", table="market_daily", rows=market.height)
     risk_free = provider.risk_free()
     forward = build_forward_returns(
         prices,
@@ -97,6 +104,8 @@ def build_pit(provider: DataProvider, out: Path, policy: PitPolicy | None = None
             "securities": securities.height,
             "corp_actions": actions.height,
             "prices_daily": prices.height,
+            "prices_monthly": monthly.height,
+            "market_daily": market.height,
             "delistings": delistings.height,
             "filings": filings.height,
             "fundamentals_pit": fundamentals.height,

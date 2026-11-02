@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Status:** building. M1 to M3 are done: scaffolding, CI, the point-in-time layer, and Sharadar data with Fama–French replication.
+**Status:** building. M1 to M4 are done: scaffolding, CI, the point-in-time layer, Sharadar data with Fama–French replication, and the signal library with its evaluation stack.
 
 | | |
 |---|---|
@@ -17,9 +17,9 @@
 - [x] Point-in-time universe: top 1,000–3,000 US stocks by market cap, rebuilt monthly, including companies that later delisted. (FR-09)
 - [x] Corporate actions handled: splits, dividends, ticker changes, and delisting returns (with an adjustment when they are missing). (FR-04, FR-05, FR-06, AC-W-05)
 - [x] Fundamentals lagged to the SEC filing acceptance date, never to the fiscal period end. (FR-08, AC-W-06)
-- [ ] A library of 20+ signals across value, momentum, quality, investment and low-risk, each winsorized and cross-sectionally z-scored.
-- [ ] Neutralization to sector, size and beta, with a switch to show results before and after.
-- [ ] Evaluation: rank IC and IC information ratio, quantile spread returns, Fama–MacBeth regressions with Newey–West errors, turnover and decay curves.
+- [x] A library of 20+ signals across value, momentum, quality, investment and low-risk, each winsorized and cross-sectionally z-scored. (FR-14, FR-15, AC-W-07)
+- [x] Neutralization to sector, size and beta, with a switch to show results before and after. (FR-16, AC-W-08)
+- [x] Evaluation: rank IC and IC information ratio, quantile spread returns, Fama–MacBeth regressions with Newey–West errors, turnover and decay curves. (FR-17 to FR-20, AC-W-09)
 - [ ] A combination layer (equal weight, IC weighted, ridge) feeding a cost-aware long–short backtest.
 - [ ] One command rebuilds every result from raw files; intermediate data is cached and versioned.
 
