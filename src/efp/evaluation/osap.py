@@ -354,18 +354,28 @@ def _unmatched(name: str, target: str, reason: str) -> dict[str, object]:
 
 
 def replicate_all(
-    panel: pl.DataFrame, panels: Panels, doc: pl.DataFrame, published: pl.DataFrame
+    panel: pl.DataFrame,
+    panels: Panels,
+    doc: pl.DataFrame,
+    published: pl.DataFrame,
+    store: PitStore | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
-    """Every signal with a target; returns the table and ``signal``, ``month``, ``ret``."""
+    """Every signal with a target; returns the table and ``signal``, ``month``, ``ret``.
+
+    With a ``store``, accounting signals in ``ANNUAL_TARGETS`` use OSAP's annual timing.
+    """
     months = panels.caps["month"].unique().sort().to_list()
     rows: list[dict[str, object]] = []
     series: list[pl.DataFrame] = []
     for name in registered():
-        if spec_of(name).osap_target is None:
+        target = spec_of(name).osap_target
+        if target is None:
             continue
         scores = panel.filter(pl.col("signal").eq(name)).select("asof", "security_id", "raw", "z")
         if scores.is_empty():
             continue
+        if store is not None and target in ANNUAL_TARGETS:
+            scores = annual_scores(store, panels, target)
         row, ours = replicate_signal(name, scores, panels, doc, published, months)
         rows.append(row)
         if "month" in ours.columns:
