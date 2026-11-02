@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Status:** building. M1 to M4 are done: scaffolding, CI, the point-in-time layer, Sharadar data with Fama–French replication, and the signal library with its evaluation stack.
+**Status:** building. M1 to M5 are done: scaffolding, CI, the point-in-time layer, Sharadar data with Fama–French replication, the signal library with its evaluation stack, and OSAP replication with post-publication decay.
 
 | | |
 |---|---|
@@ -48,7 +48,7 @@ Raw and licensed data live in `data/`, which is git-ignored. Only download scrip
 
 ### Impresses hirers
 
-- [ ] Replicate 20+ published anomalies and show post-publication decay, in line with McLean and Pontiff (2016).
+- [x] Replicate 20+ published anomalies and show post-publication decay, in line with McLean and Pontiff (2016). (FR-26, FR-27, AC-H-01, AC-H-02)
 - [ ] Judge significance against the t > 3.0 multiple-testing hurdle of Harvey, Liu and Zhu (2016), not t > 2.
 - [ ] Attribute the combined signal to FF5 plus momentum and report the residual alpha honestly.
 - [ ] Net-of-cost results with a capacity estimate: the AUM at which costs erase half the alpha.
