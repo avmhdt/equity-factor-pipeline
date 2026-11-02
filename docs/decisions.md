@@ -118,7 +118,7 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | M4 | `accruals` | Taxes payable counted as unchanged on Sharadar | The vendor has no such item |
 | M4 | `fscore` | Uses the last two fiscal years; a missing comparison scores 0 | Piotroski's definition is annual |
 | M4 | `sue` | Needs 6 of the last 8 year-over-year EPS changes | EPS is as reported, so a split inside the window adds noise |
-| M4 | Trials | One row per long-short spread: 26 signals, 2 neutralization modes, 2 universes, 2 weightings. Each is logged in its family | Every spread appears in a table a human reads. 208 rows here, 228 in total with M3's 20 |
+| M4 | Trials | One row per long-short spread: 26 signals, 2 neutralization modes, 2 universes, 2 weightings. Each is logged in its family | Every spread appears in a table a human reads. 212 rows here, 232 in total with M3's 20. `fscore`'s 4 neutralized spreads appear twice: they ran first, then again in the rerun that fixed its raw spreads |
 | M4 | `efp evaluate --signals` | Replaces those signals' rows in the tables and leaves the rest | Re-evaluating one signal should not re-log the others |
 
 ## Known limits on the free path

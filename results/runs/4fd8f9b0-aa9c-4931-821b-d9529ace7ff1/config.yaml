@@ -1,0 +1,11 @@
+breakpoints: nyse
+construction: q10_top_minus_bottom
+costs: none
+execution: close
+freq: M
+net: false
+neutralization: none
+provider: sharadar
+signal: mom_6_1
+universe: 3000
+weighting: ew
