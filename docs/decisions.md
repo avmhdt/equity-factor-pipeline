@@ -160,6 +160,7 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | M7 | AC-H-09 | `scripts/run_reuse_example.py` runs the `docs/reuse.md` example with `efp`, `statsmodels`, `scikit-learn` and `linearmodels` blocked. A CI job installs `eqpit` alone on Ubuntu and Windows and runs it | |
 | M7 | D-08 and D-10 | Defaults stand: git install only, no JKP comparison | FR-33 and FR-34 are Could. D-10 says to revisit only after M6's exit criteria pass; the owner hasn't changed it |
 | M7 | Coverage | 94% for `efp`, 99% for `eqpit`, against 85% | |
+| M7 | AC-W-12 and NFR-01 | A no-op headline rebuild took 8 seconds with 48 of 48 stages cached, 0.2% of the 74-minute run and well under NFR-01's 2 minutes. It left a clean tree and added no trials | The cache test runs a build of about 20 seconds, where start-up and report time dwarf 5%, so it allows a fixed 10 seconds. It failed once on CI at 2.1 seconds against a 2.04-second limit. The ratio is measured here instead |
 
 ## Known limits on the free path
 
