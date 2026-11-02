@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
+import click
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from efp import cli
@@ -22,34 +25,44 @@ def isolated(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("EFP_LOG_JSON", "0")
 
 
-@pytest.mark.parametrize(
-    "command",
-    [
-        ["doctor"],
-        ["data", "pull"],
-        ["data", "pull-benchmarks"],
-        ["data", "build-pit"],
-        ["data", "verify"],
-        ["synth", "generate"],
-        ["universe", "build"],
-        ["signals", "compute"],
-        ["evaluate"],
-        ["validate"],
-        ["combine"],
-        ["backtest"],
-        ["capacity"],
-        ["attribute"],
-        ["report"],
-        ["rebuild"],
-        ["cache"],
-        ["explog"],
-    ],
-)
-def test_every_command_accepts_config_and_log_level(command: list[str]) -> None:
-    result = runner.invoke(app, [*command, "--help"], env={"COLUMNS": "200", "NO_COLOR": "1"})
-    assert result.exit_code == 0
-    assert "--config" in result.output
-    assert "--log-level" in result.output
+def commands(group: click.Group, prefix: str = "") -> Iterator[tuple[str, click.Command]]:
+    context = click.Context(group)
+    for name in group.list_commands(context):
+        command = group.get_command(context, name)
+        assert command is not None
+        if isinstance(command, click.Group):
+            yield from commands(command, f"{prefix}{name} ")
+        else:
+            yield f"{prefix}{name}", command
+
+
+def test_every_command_in_the_spec_exists_and_takes_the_shared_options() -> None:
+    root = typer.main.get_command(app)
+    assert isinstance(root, click.Group)
+    found = dict(commands(root))
+    assert set(found) == {
+        "doctor",
+        "data pull",
+        "data pull-benchmarks",
+        "data build-pit",
+        "data verify",
+        "synth generate",
+        "universe build",
+        "signals compute",
+        "evaluate",
+        "validate",
+        "combine",
+        "backtest",
+        "capacity",
+        "attribute",
+        "report",
+        "rebuild",
+        "cache",
+        "explog",
+    }
+    for name, command in found.items():
+        options = {option for param in command.params for option in param.opts}
+        assert {"--config", "--log-level"} <= options, name
 
 
 def test_doctor_runs_offline() -> None:
