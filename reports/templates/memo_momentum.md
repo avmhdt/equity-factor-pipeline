@@ -39,4 +39,4 @@ As a family, an equal-weight neutralized book has a gross Sharpe of {{family.mom
 
 ## Verdict
 
-There's a real effect, led by earnings surprise, but this family gives up the most to trading. As a stand-alone monthly book it fails under these costs.
+There's a real effect, led by earnings surprise, but turnover swamps it. As a stand-alone monthly book it fails under these costs.

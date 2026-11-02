@@ -19,7 +19,7 @@ Only {{family.investment.over_hurdle}} of {{family.investment.signals}} signals 
 
 Replication needed care here. Annual Compustat items reach OSAP's portfolios with a {{spec.fiscal_lag}}-month lag, so our latest-quarter signals don't match them. Using OSAP's timing lifted `asset_growth` to r {{signal.asset_growth.osap}} and `inv_at` to r {{signal.inv_at.osap}}. `noa` stays at r {{signal.noa.osap}}, since Sharadar has no minority interest or deferred charges.
 
-Yet the family book has the highest gross Sharpe of any family, {{family.investment.gross_sharpe}}, with alpha of {{family.investment.gross_alpha}} (t {{family.investment.gross_alpha_t}}). Combining four weak signals with low turnover does better than any one of them. It loads on CMA at {{family.investment.gross_cma}}, and the factors explain little of it: R-squared is {{family.investment.gross_r2}}. Most of the return isn't the Fama-French investment factor.
+Yet the family book has the highest gross Sharpe of any family, {{family.investment.gross_sharpe}}, with alpha of {{family.investment.gross_alpha}} (t {{family.investment.gross_alpha_t}}). Combining the four at low turnover does better than most of them alone suggest. It loads on CMA at {{family.investment.gross_cma}}, and the factors explain little of it: R-squared is {{family.investment.gross_r2}}. Most of the return isn't the Fama-French investment factor.
 
 Net of costs at {{spec.aum}} the Sharpe is {{family.investment.net_sharpe}} with no trade cap and {{family.investment.capped_sharpe}} with one.
 

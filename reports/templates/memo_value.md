@@ -22,7 +22,7 @@ Measures built on earnings and cash flow beat book value here, which fits the id
 
 As a family, an equal-weight neutralized book has a gross Sharpe of {{family.value.gross_sharpe}} and FF5 + UMD alpha of {{family.value.gross_alpha}} (t {{family.value.gross_alpha_t}}). Net of costs at {{spec.aum}} the Sharpe is {{family.value.net_sharpe}} with no trade cap and {{family.value.capped_sharpe}} with one.
 
-Our value factor is not HML. Its correlation with HML falls from {{gap.hml_ff_convention.correlation}} under Fama-French's rules to {{gap.decile_spread.correlation}} on our decile construction and {{gap.neutralized.correlation}} once neutralized. Monthly re-forming and neutralization account for most of that.
+Our value factor is not HML. Its correlation with HML falls from {{gap.hml_ff_convention.correlation}} under Fama-French's rules to {{gap.decile_spread.correlation}} on our decile construction and {{gap.neutralized.correlation}} once neutralized. Neutralization is the largest single step.
 
 ![Monthly IC](../figures/ic_value.png)
 

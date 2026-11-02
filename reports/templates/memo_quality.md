@@ -18,7 +18,7 @@ Top {{spec.universe}}, {{spec.start}} to {{spec.end}}, one-month rank IC. The va
 
 This is the strongest family. {{family.quality.over_hurdle}} of {{family.quality.signals}} signals clear t = {{spec.hurdle}} on IC, and they survive neutralizing: `gp_at` rises to t {{signal.gp_at.ic_t_neutral}}. Gross profitability is the one anomaly here whose published series earned clearly more after publication than before.
 
-Accruals is the exception. Its IC is flat in this sample, and the replication fails. Sharadar has no taxes payable, so that gap is partly data. The published series has also decayed hard. `fscore` fails replication too, at r {{signal.fscore.osap}}, because OSAP's version uses different items, though its own IC is strong.
+Accruals is the exception. Its IC is flat in this sample, and the replication fails. Sharadar has no taxes payable, so that gap is partly data. The published series has also decayed hard. `fscore` fails replication too, at r {{signal.fscore.osap}}, likely because OSAP's version uses different items, though its own IC is strong.
 
 As a family, an equal-weight neutralized book has a gross Sharpe of {{family.quality.gross_sharpe}} and alpha of {{family.quality.gross_alpha}} (t {{family.quality.gross_alpha_t}}), and it loads on RMW at {{family.quality.gross_rmw}}, as it should. It replaces only {{family.quality.turnover}} of its book each month. Net of costs at {{spec.aum}} its Sharpe is still {{family.quality.net_sharpe}} with no trade cap and {{family.quality.capped_sharpe}} with one, the best of the families but below zero.
 
@@ -35,4 +35,4 @@ As a family, an equal-weight neutralized book has a gross Sharpe of {{family.qua
 
 ## Verdict
 
-This is the family most worth keeping. The effect is strong, it survives neutralizing, and it's the cheapest of the strong families to hold. It's the first place to look for a tradable book, ideally with slower rebalancing and liquid names only.
+This is the family most worth keeping. The effect is strong, it survives neutralizing, and its turnover is low. It's the first place to look for a tradable book, ideally with slower rebalancing and liquid names only.

@@ -75,7 +75,7 @@ Headline: equal weight, neutralized, top {{spec.universe}}, next-day VWAP proxy,
 | Sharpe | {{headline.gross_sharpe}} | {{headline.net_sharpe}} | {{headline.capped_sharpe}} |
 | FF5 + UMD alpha | {{headline.gross_alpha}} (t {{headline.gross_alpha_t}}) | {{headline.net_alpha}} (t {{headline.net_alpha_t}}) | {{headline.net_capped_alpha}} (t {{headline.net_capped_alpha_t}}) |
 
-Gross loadings are RMW {{headline.gross_rmw}}, HML {{headline.gross_hml}}, UMD {{headline.gross_umd}} and market {{headline.gross_mkt_rf}}, with R-squared of {{headline.gross_r2}}. Most of the alpha is not explained by the six factors.
+Gross loadings are RMW {{headline.gross_rmw}}, HML {{headline.gross_hml}}, UMD {{headline.gross_umd}} and market {{headline.gross_mkt_rf}}, with R-squared of {{headline.gross_r2}}. The six factors explain over half the variance, and a large alpha remains.
 
 Costs are {{headline.total_cost}} a year: {{headline.impact}} impact, {{headline.spread}} spread and {{headline.borrow}} borrow, on {{headline.turnover}} of the book replaced each month.
 

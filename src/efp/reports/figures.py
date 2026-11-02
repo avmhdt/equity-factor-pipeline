@@ -20,6 +20,7 @@ SURFACE = "#ffffff"
 SERIES = "#2c6fbb"
 SECOND = "#b4531f"
 DPI = 150
+LABEL_GAP = 0.055
 _DEV_ONLY = "DEV ONLY — survivorship-limited"
 
 
@@ -241,19 +242,21 @@ def family_decay(decay: pl.DataFrame, family: str, path: Path, dev_only: bool = 
     """
     rows = decay.filter(pl.col("curve").eq("horizon"), pl.col("neutralize").eq("none"))
     figure, axes = _axes(7.0, 2.8)
+    ends: list[tuple[float, str, float]] = []
     for (name,), part in rows.sort("signal", "step").group_by(["signal"], maintain_order=True):
         steps = part["step"].to_list()
         means = part["mean_ic"].to_list()
         axes.plot(steps, means, color=SERIES, linewidth=1.2, alpha=0.75, marker="o", markersize=3)
+        ends.append((means[-1], str(name), steps[-1]))
+    low, high = axes.get_ylim()
+    gap = (high - low) * LABEL_GAP
+    previous = low - gap
+    for value, name, step in sorted(ends):
+        position = max(value, previous + gap)
         axes.annotate(
-            str(name),
-            (steps[-1], means[-1]),
-            xytext=(4, 0),
-            textcoords="offset points",
-            color=INK,
-            fontsize=6,
-            va="center",
+            name, (step, value), (step + 0.15, position), color=INK, fontsize=6, va="center"
         )
+        previous = position
     axes.axhline(0.0, color=MUTED, linewidth=0.8)
     axes.grid(axis="y", color=GRID, linewidth=0.5)
     axes.set_axisbelow(True)
