@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 from efp.cli import app
 from efp.evaluation.decay import decay_curve, lagged_ic
 from efp.evaluation.quantiles import quantile_spreads
-from efp.evaluation.run import EvaluationConfig, evaluate_panel
+from efp.evaluation.run import EvaluationConfig, evaluate_panel, merge_rows
 from efp.evaluation.turnover import decile_weights, rank_autocorrelation, turnover
 from efp.explog import TrialRecord, export_log, log_trial, summarize_log
 from efp.panel import PanelConfig, build_panel
@@ -75,6 +75,29 @@ def test_nyse_breakpoints_ignore_other_exchanges() -> None:
     every = quantile_spreads(moved, fwd, q=4, breakpoints="all")
     nyse = quantile_spreads(moved, fwd, q=4, breakpoints="nyse")
     assert not every.equals(nyse)
+
+
+def test_a_discrete_score_spreads_across_its_filled_quantiles() -> None:
+    signals, fwd = cross_section(JANUARY)
+    coarse = signals.with_columns((pl.col("z") // 7).alias("z"))
+    table = quantile_spreads(coarse, fwd, q=10, breakpoints="all")
+    spread = table.filter(pl.col("quantile").eq(0))["ret"][0]
+    filled = table.filter(pl.col("quantile") > 0).sort("quantile")
+    assert filled.height < 10
+    assert spread == pytest.approx(filled["ret"][-1] - filled["ret"][0])
+
+
+def test_a_constant_score_has_no_spread() -> None:
+    signals, fwd = cross_section(JANUARY)
+    flat = signals.with_columns(pl.lit(1.0).alias("z"))
+    assert quantile_spreads(flat, fwd, q=4, breakpoints="all").is_empty()
+
+
+def test_merging_replaces_only_the_named_signals() -> None:
+    existing = pl.DataFrame({"signal": ["a", "b"], "x": [1.0, 2.0]})
+    fresh = pl.DataFrame({"signal": ["b"], "x": [3.0]})
+    merged = merge_rows(existing, fresh, ["b"])
+    assert merged["x"].to_list() == [1.0, 3.0]
 
 
 def test_too_few_breakpoint_names_gives_no_row() -> None:
@@ -180,7 +203,6 @@ def test_evaluation_tables_cover_both_modes_and_log_trials(
     assert {"mean_ic", "icir", "icir_annual", "t_nw", "hit_rate"} <= set(ic.columns)
     assert tables["quantile_spreads"].height == 6 * 2 * 2
     assert len(trials) == 6 * 2 * 2
-    assert {"univariate", "multivariate_quality"}.isdisjoint(set()) is True
     assert "univariate" in tables["fama_macbeth"]["model"].to_list()
     assert set(tables["decay"]["curve"].to_list()) == {"horizon", "lag"}
     assert tables["turnover"]["monthly_turnover"].drop_nulls().min() >= 0

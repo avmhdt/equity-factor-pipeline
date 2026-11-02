@@ -27,7 +27,9 @@ def quantile_spreads(
         score: column to sort.
 
     Returns:
-        ``signal``, ``asof``, ``quantile`` and ``ret``. Quantile 0 holds top minus bottom.
+        ``signal``, ``asof``, ``quantile`` and ``ret``. Quantile 0 holds top minus bottom. A
+        discrete score such as the F-score leaves some quantiles empty: only filled ones appear,
+        and the spread runs from the lowest filled quantile to the highest.
     """
     labels = fwd.filter(pl.col("h").eq(1)).select("asof", "security_id", "fwd_ret")
     joined = (
@@ -53,15 +55,17 @@ def quantile_spreads(
         returns = part["fwd_ret"].to_numpy()
         totals = np.bincount(buckets, weights=weights, minlength=q + 1)[1:]
         earned = np.bincount(buckets, weights=weights * returns, minlength=q + 1)[1:]
-        if (totals <= 0).any():
+        filled = np.flatnonzero(totals > 0)
+        if len(filled) < 2:
             continue
-        means = earned / totals
+        means = earned[filled] / totals[filled]
+        count = len(filled) + 1
         frames.append(
             pl.DataFrame(
                 {
-                    "signal": [name] * (q + 1),
-                    "asof": [asof] * (q + 1),
-                    "quantile": list(range(q + 1)),
+                    "signal": [name] * count,
+                    "asof": [asof] * count,
+                    "quantile": [0, *(filled + 1).tolist()],
                     "ret": [float(means[-1] - means[0]), *means.tolist()],
                 },
                 schema={

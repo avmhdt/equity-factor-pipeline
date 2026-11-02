@@ -261,6 +261,12 @@ def evaluate_panel(
     return tables
 
 
+def merge_rows(existing: pl.DataFrame, fresh: pl.DataFrame, signals: Sequence[str]) -> pl.DataFrame:
+    """Replace the given signals' rows in a table, keeping every other signal's."""
+    kept = existing.filter(~pl.col("signal").is_in(list(signals)))
+    return pl.concat([kept, fresh], how="diagonal_relaxed").sort("signal")
+
+
 def signals_argument(text: str | None) -> Sequence[str] | None:
     """Split a ``--signals`` value."""
     return [item.strip() for item in text.split(",")] if text else None

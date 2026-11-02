@@ -24,7 +24,7 @@ from efp.config import (
 )
 from efp.doctor import run_doctor
 from efp.evaluation.french import compare, replicate
-from efp.evaluation.run import evaluate_panel, signals_argument
+from efp.evaluation.run import evaluate_panel, merge_rows, signals_argument
 from efp.evaluation.survivorship import bias_table, delisted_names_by_year, series_by_mode
 from efp.explog import TrialRecord, export_log, log_trial, summarize_log
 from efp.logs import configure_logging
@@ -273,8 +273,13 @@ def evaluate(
         logger = partial(_log_record, log_path=log_path)
     tables = evaluate_panel(panel, store, rules, provider, logger)
     directory = _tables_dir(data_dir, provider, name)
+    chosen = signals_argument(signals)
     for table_name, table in tables.items():
-        _write_table(table, directory, table_name)
+        existing = directory / f"{table_name}.csv"
+        merged = table
+        if chosen is not None and existing.is_file():
+            merged = merge_rows(pl.read_csv(existing), table, chosen)
+        _write_table(merged, directory, table_name)
     typer.echo(f"wrote {len(tables)} tables to {directory}")
 
 
