@@ -278,7 +278,7 @@ class LabelStore:
         return self._read("universe_monthly").sort("asof", "rank")
 
     def month_end_caps(self) -> pl.DataFrame:
-        """``month``, ``security_id`` and ``mcap`` at every month-end session."""
+        """``month``, ``security_id``, ``mcap`` and ``close`` at every month-end session."""
         prices = pl.scan_parquet(self.root / "prices_daily" / "**" / "*.parquet")
         bounds = prices.select(
             pl.col("date").min().alias("first"), pl.col("date").max().alias("last")
@@ -286,7 +286,7 @@ class LabelStore:
         ends = calendar.month_ends(bounds["first"][0], bounds["last"][0])
         return (
             prices.filter(pl.col("date").is_in(ends))
-            .select(pl.col("date").alias("month"), "security_id", "mcap")
+            .select(pl.col("date").alias("month"), "security_id", "mcap", "close")
             .drop_nulls("mcap")
             .sort("month", "security_id")
             .collect()

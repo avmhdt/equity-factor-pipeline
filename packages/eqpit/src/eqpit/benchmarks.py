@@ -1,9 +1,10 @@
-"""External benchmark files: Kenneth French's factors (DQ-14)."""
+"""External benchmark files: Kenneth French's factors and OSAP portfolios (DQ-14)."""
 
 from __future__ import annotations
 
 import io
 import re
+import ssl
 import zipfile
 from datetime import date
 from pathlib import Path
@@ -19,11 +20,18 @@ from eqpit.snapshot import (
     open_snapshot,
     read_manifest,
 )
+from eqpit.throttle import ByteThrottle
 
 FRENCH_BASE = "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp"
 FRENCH_FILES = {
     "ff5_monthly": "F-F_Research_Data_5_Factors_2x3_CSV.zip",
     "mom_monthly": "F-F_Momentum_Factor_CSV.zip",
+}
+OSAP_RELEASE = "Data-Release-2026.10"
+OSAP_BASE = f"https://huggingface.co/datasets/OpenSourceAP/CrossSection/resolve/{OSAP_RELEASE}"
+OSAP_FILES = {
+    "PredictorLSretWide.parquet": "Portfolios/Full%20Sets%20OP/PredictorLSretWide.parquet",
+    "SignalDoc.csv": "SignalDoc.csv",
 }
 _MONTH_ROW = re.compile(r"^\s*(\d{6})\s*,")
 _MISSING = (-99.99, -999.0)
@@ -69,6 +77,62 @@ def align_to_sessions(frame: pl.DataFrame) -> pl.DataFrame:
         pl.col("month").dt.month_end().alias("calendar_month")
     )
     return frame.join(table, on="calendar_month", how="inner").drop("calendar_month").sort("month")
+
+
+def _system_tls() -> ssl.SSLContext:
+    """Verify against the operating system's trust store, as curl does here."""
+    return ssl.create_default_context()
+
+
+def pull_osap(dest: Path, transport: httpx.BaseTransport | None = None) -> SnapshotManifest:
+    """Download published long-short returns and SignalDoc (D-09: no firm-level data)."""
+    with (
+        httpx.Client(
+            transport=transport,
+            timeout=httpx.Timeout(60.0),
+            follow_redirects=True,
+            verify=_system_tls(),
+        ) as client,
+        open_snapshot(
+            dest,
+            "osap",
+            "portfolios",
+            False,
+            source=OSAP_BASE,
+            package_version=__version__,
+            metadata={"release": OSAP_RELEASE},
+        ) as staging,
+    ):
+        for name, path in OSAP_FILES.items():
+            throttle = ByteThrottle()
+            with client.stream("GET", f"{OSAP_BASE}/{path}") as stream:
+                stream.raise_for_status()
+                with (staging / name).open("wb") as handle:
+                    for chunk in stream.iter_bytes(chunk_size=1 << 18):
+                        handle.write(chunk)
+                        throttle.consumed(len(chunk))
+    return read_manifest(latest_snapshot(dest, "portfolios"))
+
+
+def load_signal_doc(root: Path) -> pl.DataFrame:
+    """OSAP's table of predictors, conventions, sample periods and publication years."""
+    return pl.read_csv(
+        latest_snapshot(root, "portfolios") / "SignalDoc.csv", infer_schema_length=None
+    )
+
+
+def load_osap_returns(root: Path) -> pl.DataFrame:
+    """Published long-short returns as decimals: ``month``, ``target``, ``ret``.
+
+    The file is in percent and keyed by calendar month, so months align to the last session.
+    """
+    wide = pl.read_parquet(latest_snapshot(root, "portfolios") / "PredictorLSretWide.parquet")
+    long = wide.unpivot(index="date", variable_name="target", value_name="ret").drop_nulls("ret")
+    keyed = long.with_columns(
+        pl.col("date").cast(pl.Date).dt.month_end().alias("calendar_month"),
+        (pl.col("ret") / 100.0).alias("ret"),
+    ).drop("date")
+    return align_to_sessions(keyed).select("month", "target", "ret").sort("target", "month")
 
 
 def pull_french(dest: Path, transport: httpx.BaseTransport | None = None) -> SnapshotManifest:

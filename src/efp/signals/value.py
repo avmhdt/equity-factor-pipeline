@@ -16,7 +16,7 @@ def _over_me(store: PitStore, asof: date, frame: pl.DataFrame, numerator: pl.Exp
     return to_signal(joined, numerator / pl.col("me"), ("available_at", "me_at"))
 
 
-@register(SignalSpec("bm", "value", 1, ("book_equity",), 0, "Fama & French 1992", "BM"))
+@register(SignalSpec("bm", "value", 1, ("book_equity",), 0, "Fama & French 1992", "BMdec"))
 def bm(store: PitStore, asof: date) -> pl.DataFrame:
     """Book equity over market equity at the as-of date; negative book equity gives no value."""
     frame = latest(store, asof, ["book_equity"]).filter(pl.col("book_equity") > 0)
@@ -61,7 +61,7 @@ def sp(store: PitStore, asof: date) -> pl.DataFrame:
         ("operating_income", "depreciation", "short_term_debt", "long_term_debt", "cash"),
         0,
         "Loughran & Wellman 2011",
-        None,
+        "EntMult",
     )
 )
 def ebitda_ev(store: PitStore, asof: date) -> pl.DataFrame:

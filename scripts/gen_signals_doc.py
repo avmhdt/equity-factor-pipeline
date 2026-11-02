@@ -27,7 +27,7 @@ def render() -> str:
     for name in registered():
         spec = spec_of(name)
         doc = (signal_function(name).__doc__ or "").strip().splitlines()[0]
-        target = spec.osap_target or "to verify in M5"
+        target = spec.osap_target or "none"
         rows.append(
             f"| `{name}` | {spec.family} | {spec.direction:+d} | {doc} | {spec.reference} "
             f"| {target} |"

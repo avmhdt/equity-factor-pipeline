@@ -105,7 +105,7 @@ def ind_mom(store: PitStore, asof: date) -> pl.DataFrame:
         ("eps_diluted",),
         0,
         "Foster, Olsen & Shevlin 1984; Bernard & Thomas 1989",
-        None,
+        "EarningsSurprise",
     )
 )
 def sue(store: PitStore, asof: date) -> pl.DataFrame:
