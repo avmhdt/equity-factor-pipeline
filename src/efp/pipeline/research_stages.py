@@ -42,6 +42,7 @@ from efp.research import (
     combine_task,
     factor_table,
     french_task,
+    impact_model_task,
     multiple_testing_task,
     osap_task,
     postpub_task,
@@ -54,6 +55,7 @@ from efp.signals.registry import compute_signals, spec_of
 from eqpit.store import PitStore
 
 EXPOSURES = ("beta", "size")
+LATE_ROUNDS = ("spread_models", "impact_models")
 RESEARCH_MODULES = ("efp.research", "efp.panel", "efp.explog", "efp.config")
 
 
@@ -370,6 +372,20 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
             plan.provider not in (*LICENSED, "synthetic"),
         ).height
 
+    def impact_models(path: Path, inputs: Mapping[str, Path]) -> int:
+        store = _store(inputs)
+        return impact_model_task(
+            store,
+            plan.dates(store),
+            inputs["composites"] / "composites",
+            names,
+            factor_table(store, plan.external, plan.provider),
+            config,
+            plan.sink(path),
+            plan.provider,
+            plan.provider not in (*LICENSED, "synthetic"),
+        ).height
+
     def attribution(path: Path, inputs: Mapping[str, Path]) -> int:
         factors = factor_table(_store(inputs), plan.external, plan.provider)
         return attribution_task(
@@ -402,6 +418,7 @@ def _portfolio_stages(plan: _Plan) -> list[Stage]:
         Stage("capacity", capacity, settings, ("pit", "composites"), modules=trading),
         Stage("attribution", attribution, settings, ("pit", "backtest"), modules=trading),
         Stage("spread_models", spread_models, settings, ("pit", "composites"), modules=trading),
+        Stage("impact_models", impact_models, settings, ("pit", "composites"), modules=trading),
     ]
 
 
@@ -431,12 +448,11 @@ def research_stages(experiment: Experiment, external: Path, log_path: Path) -> l
     def testing(path: Path, inputs: Mapping[str, Path]) -> int:
         return multiple_testing_task(log_path, plan.sink(path)).height
 
+    logging = ("french", "survivorship", "osap", "composites", "backtest")
     logged = tuple(
         stage.name
         for stage in stages
-        if stage.name.startswith("evaluate_")
-        or stage.name
-        in ("french", "survivorship", "osap", "composites", "backtest", "spread_models")
+        if stage.name.startswith("evaluate_") or stage.name in (*logging, *LATE_ROUNDS)
     )
     stages.append(Stage("multiple_testing", testing, None, logged, modules=RESEARCH_MODULES))
     return stages

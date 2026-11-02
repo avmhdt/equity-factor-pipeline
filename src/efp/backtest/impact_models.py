@@ -44,14 +44,14 @@ ZARINELLI_FITS: tuple[tuple[int | None, float, float], ...] = (
 def almgren_cost(x: float, vol: float, cap_over_adv: float) -> float:
     """Average cost per dollar under Almgren et al., traded over one day."""
     permanent = ALMGREN_GAMMA * vol * x * cap_over_adv**ALMGREN_LIQUIDITY_EXPONENT
-    return permanent / 2.0 + vol * ALMGREN_ETA * x**ALMGREN_EXPONENT
+    return float(permanent / 2.0 + vol * ALMGREN_ETA * x**ALMGREN_EXPONENT)
 
 
 def zarinelli_cost(x: float, daily_range: float, rank: int | None) -> float:
     """Average cost per dollar under Zarinelli et al., from peak impact by size class."""
     for limit, scale, delta in ZARINELLI_FITS:
         if limit is None or (rank is not None and rank <= limit):
-            return daily_range * scale * x**delta / (1.0 + delta)
+            return float(daily_range * scale * x**delta / (1.0 + delta))
     raise ValueError("the last fit has no rank limit")
 
 

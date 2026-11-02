@@ -423,3 +423,64 @@ def spread_model_bars(
     right.set_title("Headline book: net Sharpe", color=INK, fontsize=8, loc="left")
     right.legend(frameon=False, fontsize=7, labelcolor=INK, loc="lower center", ncols=2)
     _save(figure, "Spread models side by side", path, dev_only)
+
+
+def impact_model_bars(
+    checks: pl.DataFrame, table: pl.DataFrame, path: Path, dev_only: bool = False
+) -> None:
+    """Cost by trade size under each law, and the capped headline book's net Sharpe.
+
+    Args:
+        checks: ``impact_model_checks``.
+        table: ``impact_models`` rows for the headline composite.
+        path: output file.
+        dev_only: watermark the figure (DQ-16).
+    """
+    figure, panels = _small_multiples(2, 9.0, 3.4)
+    left, right = panels
+    sizes = [value * 100.0 for value in checks["share_of_daily_volume"].to_list()]
+    lines = (
+        ("square_root_k1", "Headline, k = 1", INK, "-"),
+        ("square_root_average", "Y = 1, average", MUTED, "-"),
+        ("almgren_2005", "Almgren 2005", SERIES, "-"),
+        ("zarinelli_large", "Zarinelli, large", SECOND, "-"),
+        ("zarinelli_small", "Zarinelli, small", SECOND, "--"),
+        ("frazzini_size_terms", "Frazzini size terms", MUTED, ":"),
+    )
+    for column, label, color, style in lines:
+        left.plot(sizes, checks[column].to_list(), color=color, linestyle=style, label=label)
+    left.set_xscale("log")
+    left.set_yscale("log")
+    left.set_xticks(sizes, [f"{value:g}%" for value in sizes])
+    left.set_yticks(LOG_TICKS, [str(tick) for tick in LOG_TICKS])
+    left.minorticks_off()
+    left.set_xlabel("Trade as a share of daily volume", color=MUTED, fontsize=7)
+    left.set_ylabel("Cost, bps of the trade (2% daily vol)", color=MUTED, fontsize=7)
+    left.set_title("Impact laws at a typical stock", color=INK, fontsize=8, loc="left")
+    left.legend(frameon=False, fontsize=6, labelcolor=INK)
+    laws = ("square_root_k1", "square_root_average", "almgren_2005", "zarinelli_2015")
+    names = ("k = 1", "Y = 1, average", "Almgren", "Zarinelli")
+    series = (
+        ("Corwin-Schultz", "corwin_schultz", "full", GRID),
+        ("Size table", "size_bucket", "full", "#b7c0ca"),
+        ("Corwin-Schultz, 2010 on", "corwin_schultz", "2010_on", MUTED),
+        ("Size table, 2010 on", "size_bucket", "2010_on", SERIES),
+    )
+    for offset, (label, spread, period, shade) in enumerate(series):
+        chosen = table.filter(pl.col("spread_model").eq(spread), pl.col("period").eq(period))
+        values = [
+            chosen.filter(pl.col("impact_model").eq(law))["capped_net_sharpe"].item()
+            for law in laws
+        ]
+        right.bar(
+            [index + 0.2 * (offset - 1.5) for index in range(len(laws))],
+            values,
+            width=0.18,
+            color=shade,
+            label=label,
+        )
+    right.set_xticks(range(len(laws)), names)
+    right.axhline(0.0, color=MUTED, linewidth=0.8)
+    right.set_title("Headline book, ADV cap: net Sharpe", color=INK, fontsize=8, loc="left")
+    right.legend(frameon=False, fontsize=7, labelcolor=INK)
+    _save(figure, "Published impact laws", path, dev_only)

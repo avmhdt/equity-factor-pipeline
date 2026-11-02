@@ -95,6 +95,9 @@ def test_tables_arrive_and_the_log_holds_composites(
     assert (tables / "spread_models.csv").is_file()
     assert (tables / "spread_model_capacity.csv").is_file()
     assert (tables / "spread_model_checks.csv").is_file()
+    assert (tables / "impact_models.csv").is_file()
+    assert (tables / "impact_model_capacity.csv").is_file()
+    assert (tables / "impact_trade_profile.csv").is_file()
     for name in (*expected, "capacity", "attribution"):
         assert (tables / f"{name}.csv").is_file(), name
     assert (tables / "numbers.json").is_file()

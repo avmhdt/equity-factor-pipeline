@@ -176,13 +176,18 @@ def capacity_rows(
     run: Callable[[SimulationConfig], BacktestResult],
     factors: pl.DataFrame,
     config: BacktestConfig,
+    simulation: SimulationConfig | None = None,
+    multipliers: Sequence[float] | None = None,
 ) -> list[dict[str, object]]:
     """FR-24's test at each impact multiplier, under one spread model."""
-    base = SimulationConfig(aum=config.aum, costs=config.costs)
+    base = simulation or SimulationConfig(aum=config.aum, costs=config.costs)
     rows: list[dict[str, object]] = []
-    for multiplier in config.impact_multipliers:
+    for multiplier in multipliers or config.impact_multipliers:
         result = capacity_curve(
-            run, factors, replace(base, impact_scale=multiplier), config.capacity
+            run,
+            factors,
+            replace(base, impact_scale=base.impact_scale * multiplier),
+            config.capacity,
         )
         alphas = result.curve["net_alpha_annual"]
         rows.append(
@@ -207,10 +212,11 @@ def run_model(
     scores: pl.DataFrame,
     market: Market,
     config: BacktestConfig,
+    base: SimulationConfig | None = None,
 ) -> ModelRun:
     """The composite with and without the ADV cap."""
     mode = config.headline_execution
-    simulation = SimulationConfig(aum=config.aum, costs=config.costs)
+    simulation = base or SimulationConfig(aum=config.aum, costs=config.costs)
     capped = replace(simulation, max_participation=config.capacity.max_participation)
     return ModelRun(
         name,
