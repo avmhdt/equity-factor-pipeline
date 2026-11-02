@@ -149,6 +149,18 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | M6 | Reading `multiple_testing` | `t_over_3` is two-sided. Most composite rows clear it because their net returns are significantly negative | The README claims significance only for positive t |
 | M6 | Returns not in the backtest | No interest on short proceeds or cash | The series are excess returns on a self-financing book |
 | M6 | Low-risk survivorship row | Stays a 2x3 sort on trailing volatility | The M3 note planned a rerun with library signals. It would need the signals built survivors-only, and the sort already answers AC-W-03 |
+| M7 | AC-W-04 | Passed in a clean directory on 2026-11-02: a fresh clone of `5664102`, with only `data/raw` and `data/external` copied in, and no `.env`, cache or return files | 48 of 48 stages ran in 74.0 minutes at 8 threads. `git status` afterwards showed only `pipeline_timings` changed: every table, figure, memo, the README and `readme_numbers.json` came out byte-identical, and the trial log gained no rows. It ran on the same machine, so it doesn't test another OS |
+| M7 | Documents | The README and memos render from `reports/templates`, with every number a named placeholder. An unknown name is an error | FR-31 and AC-H-11. Tests check that each document equals its rendered template and that every number in the README is in `readme_numbers.json` |
+| M7 | Fixed numbers | Thresholds and settings the documents state are a named list in `efp/reports/numbers.py`, with a few diagnostics from M6 | They're inputs or one-off measurements, so no table holds them. The diagnostics are the Corwin-Schultz range, the 3.7x ADV position and the 0.38 exposure |
+| M7 | Trial t | Each trial's t is in its `metrics.json`, backfilled for the 485 existing runs. `trial_log.csv` is untouched | Return series stay out of git under D-13, so a clone would otherwise score every trial p = 1 and `multiple_testing` wouldn't reproduce |
+| M7 | Figure inputs | Series figures need stay in `data/processed/report`, outside git | D-13 allows figures, not series |
+| M7 | `efp report` | Runs at the end of every rebuild and alone. A run skips what its tables don't support, and only licensed runs write the README and memos | Synthetic runs must not overwrite documents |
+| M7 | Memo wording | Claims were checked against the tables before commit. Five overreached and were corrected | The numbers are generated, but the sentences around them aren't, so a wrong claim can survive a right number. Re-read the memos if a rebuild moves a table |
+| M7 | NFR-07 review | A test checks that no table has a security column, and that no return series or `data/` path is tracked | The spec asks for a checklist. A test stays true |
+| M7 | AC-H-09 | `scripts/run_reuse_example.py` runs the `docs/reuse.md` example with `efp`, `statsmodels`, `scikit-learn` and `linearmodels` blocked. A CI job installs `eqpit` alone on Ubuntu and Windows and runs it | |
+| M7 | D-08 and D-10 | Defaults stand: git install only, no JKP comparison | FR-33 and FR-34 are Could. D-10 says to revisit only after M6's exit criteria pass; the owner hasn't changed it |
+| M7 | Coverage | 94% for `efp`, 99% for `eqpit`, against 85% | |
+| M7 | AC-W-12 and NFR-01 | A no-op headline rebuild took 8 seconds with 48 of 48 stages cached, 0.2% of the 74-minute run and well under NFR-01's 2 minutes. It left a clean tree and added no trials | The cache test runs a build of about 20 seconds, where start-up and report time dwarf 5%, so it allows a fixed 10 seconds. It failed once on CI at 2.1 seconds against a 2.04-second limit. The ratio is measured here instead |
 
 ## Known limits on the free path
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 
@@ -10,7 +11,7 @@ import polars as pl
 from numpy.typing import NDArray
 from scipy import stats
 
-from efp.evaluation.ic import newey_west_t
+from efp.explog import trial_t
 
 HURDLE = 3.0
 
@@ -36,21 +37,34 @@ def two_sided_p(t_stat: float) -> float:
     return float(2.0 * stats.norm.sf(abs(t_stat)))
 
 
-def trial_statistics(log_path: Path) -> pl.DataFrame:
-    """Newey-West t of every logged trial, read from its return series.
+def _trial_t(log_path: Path, returns_path: str | None) -> float:
+    """The t of one row: from its series, or from ``metrics.json`` where the series is not kept.
 
-    Failed trials and trials whose series is missing count in N with a p-value of one, so a
+    Return series stay out of git, so a fresh clone has only the metrics.
+    """
+    if not returns_path:
+        return float("nan")
+    path = log_path.parent / returns_path
+    if path.is_file():
+        found = trial_t(pl.read_parquet(path, columns=["ret"])["ret"].to_numpy())
+        return float("nan") if found is None else found
+    metrics = path.with_name("metrics.json")
+    if not metrics.is_file():
+        return float("nan")
+    value = json.loads(metrics.read_text(encoding="utf-8")).get("t_nw")
+    return float("nan") if value is None else float(value)
+
+
+def trial_statistics(log_path: Path) -> pl.DataFrame:
+    """Newey-West t of every logged trial.
+
+    Failed trials and trials with no series or metrics count in N with a p-value of one, so a
     failure can only make the adjustment stricter.
     """
     log = pl.read_csv(log_path, schema_overrides={"sharpe_annual": pl.Float64, "x_note": pl.String})
     rows: list[dict[str, object]] = []
     for row in log.iter_rows(named=True):
-        series = None
-        if row["returns_path"]:
-            path = log_path.parent / row["returns_path"]
-            if path.is_file():
-                series = pl.read_parquet(path, columns=["ret"])["ret"].to_numpy()
-        t_stat = newey_west_t(series) if series is not None and len(series) > 10 else float("nan")
+        t_stat = _trial_t(log_path, row["returns_path"])
         rows.append(
             {
                 "run_id": row["run_id"],

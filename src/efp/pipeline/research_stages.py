@@ -28,6 +28,7 @@ from efp.config import (
     headline_method,
     panel_config,
 )
+from efp.evaluation.ic import rank_ic
 from efp.evaluation.run import TABLE_KEYS, evaluate_panel
 from efp.panel import ALL_ELIGIBLE, all_signals, transform_panel, write_panel
 from efp.pipeline.stages import Stage, StageRun
@@ -190,12 +191,13 @@ def _evaluate_stage(plan: _Plan, family: str, members: list[str]) -> Stage:
 
     def run(path: Path, inputs: Mapping[str, Path]) -> int:
         sink = plan.sink(path)
-        tables = evaluate_panel(
-            _panels(inputs, members), _store(inputs), rules, plan.provider, sink.record
-        )
+        members_panel = _panels(inputs, members)
+        tables = evaluate_panel(members_panel, _store(inputs), rules, plan.provider, sink.record)
         (path / "parts").mkdir()
         for name, table in tables.items():
             table.write_parquet(path / "parts" / f"{name}.parquet")
+        forward = _store(inputs).labels().forward_returns((1,))
+        rank_ic(members_panel, forward, 1, "z").write_parquet(path / "parts" / "ic_series.parquet")
         return sum(table.height for table in tables.values())
 
     return Stage(
@@ -232,7 +234,13 @@ def _evaluation_tables_stage(plan: _Plan, families: Sequence[str]) -> Stage:
 
 def _validation_stages(plan: _Plan) -> list[Stage]:
     def french(path: Path, inputs: Mapping[str, Path]) -> int:
-        table = french_task(_store(inputs), plan.external, plan.sink(path), plan.provider)
+        table = french_task(
+            _store(inputs),
+            plan.external,
+            plan.sink(path),
+            plan.provider,
+            path / "french_ours.parquet",
+        )
         if not table.filter(pl.col("passed").eq(False)).is_empty():
             raise ValueError(f"French replication failed:\n{table}")
         return table.height
@@ -426,6 +434,22 @@ def publish_research(runs: Sequence[StageRun], tables_dir: Path, figures_dir: Pa
             shutil.copytree(run.path / "tables", tables_dir, dirs_exist_ok=True)
         if (run.path / "figures").is_dir():
             shutil.copytree(run.path / "figures", figures_dir, dirs_exist_ok=True)
+
+
+def publish_series(runs: Sequence[StageRun], target: Path, composite: str) -> None:
+    """Keep the series figures need, outside git (D-13)."""
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+    for run in runs:
+        if run.stage.startswith("evaluate_"):
+            family = run.stage.removeprefix("evaluate_")
+            shutil.copy2(run.path / "parts" / "ic_series.parquet", target / f"ic_{family}.parquet")
+        elif run.stage == "french":
+            shutil.copy2(run.path / "french_ours.parquet", target / "french_ours.parquet")
+        elif run.stage == "backtest":
+            for path in sorted((run.path / "series").glob(f"{composite}__*.parquet")):
+                shutil.copy2(path, target / path.name)
 
 
 def write_timings(runs: Sequence[StageRun], tables_dir: Path) -> None:

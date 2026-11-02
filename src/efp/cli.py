@@ -37,10 +37,12 @@ from efp.pipeline.cache import StageCache
 from efp.pipeline.research_stages import (
     benchmark_ids,
     publish_research,
+    publish_series,
     research_stages,
     write_timings,
 )
 from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
+from efp.reports.report import ReportPaths, write_report
 from efp.reports.tables import write_table
 from efp.research import (
     LICENSED,
@@ -59,7 +61,7 @@ from efp.research import (
     value_gap_task,
 )
 from efp.settings import ProviderName, Settings, get_settings
-from eqpit.benchmarks import pull_french, pull_osap
+from eqpit.benchmarks import load_french, pull_french, pull_osap
 from eqpit.edgar.xbrl_map import DEFAULT_XBRL_MAP, XbrlMap
 from eqpit.pit.build import build_pit, read_pit_manifest, rebuild_universe
 from eqpit.pit.policy import PitPolicy
@@ -483,11 +485,38 @@ def attribute(config: ConfigOption = None, log_level: LogLevelOption = None) -> 
     )
 
 
+def _write_report(data_dir: Path, sink: Sink, experiment: Experiment) -> None:
+    provider = experiment.run.provider
+    licensed = provider in LICENSED
+    numbers = Path("results") / "readme_numbers.json" if licensed else sink.tables / "numbers.json"
+    paths = ReportPaths(
+        sink.tables,
+        data_dir / "processed" / "report",
+        sink.figures,
+        numbers,
+        Path("reports") / "templates" if licensed else None,
+        Path("reports") / "memos" if licensed else None,
+        Path("README.md") if licensed else None,
+    )
+    headline, _ = headline_composite(experiment)
+    write_report(
+        paths,
+        trial_log_path(experiment, provider, data_dir),
+        headline,
+        backtest_config(experiment).headline_execution,
+        load_french(data_dir / "external" / "french") if licensed else None,
+        provider == "edgar_free",
+    )
+
+
 @app.command()
 def report(config: ConfigOption = None, log_level: LogLevelOption = None) -> None:
     """Tables, figures, memos and results/readme_numbers.json."""
-    _start(config, log_level)
-    _pending("M7")
+    settings, loaded = _start(config, log_level)
+    experiment = _experiment(loaded)
+    data_dir = _data_dir(settings, experiment)
+    _write_report(data_dir, _sink(data_dir, experiment.run.provider, experiment), experiment)
+    typer.echo("report written")
 
 
 @app.command()
@@ -526,6 +555,10 @@ def rebuild(
     publish(runs, data_dir, sink.tables)
     publish_research(runs, sink.tables, sink.figures)
     write_timings(runs, sink.tables)
+    if experiment.signals:
+        headline, _ = headline_composite(experiment)
+        publish_series(runs, data_dir / "processed" / "report", headline)
+        _write_report(data_dir, sink, experiment)
     for run in runs:
         state = "cached" if run.cached else "ran"
         typer.echo(f"{run.stage:<20} {state:<7} {run.seconds:8.3f}s {run.key[:12]}")

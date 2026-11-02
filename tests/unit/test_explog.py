@@ -7,13 +7,14 @@ import json
 import math
 import re
 import statistics
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import polars as pl
 import pyarrow.parquet as pq
 import pytest
 
+from efp.evaluation.multiple_testing import trial_statistics
 from efp.explog import COLUMNS, TrialRecord, log_failed, log_trial
 
 MONTHS = [date(2024, month, 28) for month in range(1, 7)]
@@ -117,3 +118,28 @@ def test_outside_a_repository_the_sha_is_marked_dirty(
     log_path = tmp_path / "log.csv"
     log_failed(log_path, "value", {}, "x")
     assert rows(log_path)[0]["git_sha"] == "0" * 40 + "-dirty"
+
+
+def test_metrics_keep_the_t_for_a_clone_without_series(tmp_path: Path) -> None:
+    months = [date(2020, 1, 31) + timedelta(days=30 * index) for index in range(24)]
+    series = pl.DataFrame({"date": months, "ret": [0.01 + 0.002 * (i % 5) for i in range(24)]})
+    log = tmp_path / "trial_log.csv"
+    run_id = log_trial(TrialRecord("value", {"a": 1}, series, "M"), log, tmp_path / "runs")
+    folder = tmp_path / "runs" / run_id
+    before = trial_statistics(log)["t_nw"].item()
+    (folder / "returns.parquet").unlink()
+    assert trial_statistics(log)["t_nw"].item() == pytest.approx(before, abs=0.0)
+    assert json.loads((folder / "metrics.json").read_text(encoding="utf-8"))["t_nw"] == before
+
+
+def test_once_skips_a_repeat_and_keeps_a_change(tmp_path: Path) -> None:
+    months = [date(2020, 1, 31) + timedelta(days=30 * index) for index in range(24)]
+    series = pl.DataFrame({"date": months, "ret": [0.01 + 0.002 * (i % 5) for i in range(24)]})
+    log = tmp_path / "trial_log.csv"
+    runs = tmp_path / "runs"
+    first = log_trial(TrialRecord("value", {"a": 1}, series, "M"), log, runs, once=True)
+    again = log_trial(TrialRecord("value", {"a": 1}, series, "M"), log, runs, once=True)
+    assert again == first
+    moved = series.with_columns(pl.col("ret") * 1.5 + 0.001)
+    log_trial(TrialRecord("value", {"a": 1}, moved, "M"), log, runs, once=True)
+    assert pl.read_csv(log).height == 2

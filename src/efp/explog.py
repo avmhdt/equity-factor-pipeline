@@ -18,10 +18,14 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
 import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 import yaml
+from numpy.typing import NDArray
+
+from efp.evaluation.ic import newey_west_t
 
 COLUMNS = (
     "run_id",
@@ -40,6 +44,7 @@ COLUMNS = (
     "x_selected",
 )
 PERIODS_PER_YEAR = {"D": 252, "M": 12}
+MIN_T_OBSERVATIONS = 10
 
 
 @dataclass(frozen=True)
@@ -106,6 +111,11 @@ def _base_row(log_path: Path, family: str, params: dict[str, object]) -> dict[st
     }
 
 
+def trial_t(returns: NDArray[np.float64]) -> float | None:
+    """Newey-West t of one series, or None when it is too short to mean anything."""
+    return newey_west_t(returns) if len(returns) > MIN_T_OBSERVATIONS else None
+
+
 def _logged_run(log_path: Path, row: dict[str, str], n_obs: int, sharpe: str) -> str | None:
     """The run id of an identical trial already in the log."""
     if not log_path.exists():
@@ -160,7 +170,12 @@ def log_trial(record: TrialRecord, log_path: Path, runs_dir: Path, once: bool = 
     }
     (target.parent / "metrics.json").write_text(
         json.dumps(
-            {"n_obs": len(returns), "sharpe_annual": sharpe, "params": record.params},
+            {
+                "n_obs": len(returns),
+                "sharpe_annual": sharpe,
+                "t_nw": trial_t(np.array(returns)),
+                "params": record.params,
+            },
             indent=2,
             sort_keys=True,
         )

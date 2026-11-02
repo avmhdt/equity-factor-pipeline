@@ -38,7 +38,7 @@ def test_timing_covers_the_composite_and_each_family() -> None:
 
 def test_attribution_reports_gross_and_net() -> None:
     table = _read("attribution").filter(pl.col("composite").eq(HEADLINE))
-    assert set(table["basis"]) == {"gross", "net"}
+    assert set(table["basis"]) == {"gross", "net", "net_capped"}
     assert {"alpha_annual", "alpha_t", "umd", "r_squared"} <= set(table.columns)
 
 
