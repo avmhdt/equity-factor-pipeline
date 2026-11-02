@@ -2,18 +2,26 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Literal, NoReturn
 
 import typer
 
-from efp.config import Experiment, config_hash, load_config
+from efp.config import Experiment, config_hash, load_config, load_xbrl_map, pit_policy
 from efp.doctor import run_doctor
 from efp.logs import configure_logging
 from efp.pipeline.cache import StageCache
-from efp.pipeline.stages import RunContext, build_stages, run_stages
-from efp.settings import Settings, get_settings
+from efp.pipeline.stages import RunContext, build_stages, publish, run_stages
+from efp.settings import ProviderName, Settings, get_settings
+from eqpit.edgar.xbrl_map import DEFAULT_XBRL_MAP, XbrlMap
+from eqpit.pit.build import build_pit, read_pit_manifest, rebuild_universe
+from eqpit.pit.policy import PitPolicy
+from eqpit.pit.verify import write_reports
+from eqpit.providers.base import get_provider
+from eqpit.providers.synthetic import write_market
 from eqpit.snapshot import prune_snapshots
+from eqpit.synthetic import SyntheticConfig
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
 data_app = typer.Typer(no_args_is_help=True, add_completion=False, help="Data ingest and PIT build")
@@ -67,9 +75,28 @@ def doctor(
         raise typer.Exit(code=1)
 
 
+def _xbrl_map() -> XbrlMap:
+    path = Path("configs/xbrl_map.yaml")
+    return load_xbrl_map(path) if path.is_file() else DEFAULT_XBRL_MAP
+
+
+def _max_companies(experiment: Experiment | None) -> int | None:
+    if experiment is None:
+        return None
+    limit = experiment.edgar_free.get("max_companies")
+    return int(limit) if limit is not None else None
+
+
+def _tables_dir(data_dir: Path, provider: str, run_name: str) -> Path:
+    """Only licensed runs write to ``results/tables``, the directory the repo commits."""
+    if provider in ("sharadar", "wrds"):
+        return Path("results") / "tables"
+    return data_dir / "processed" / "tables" / run_name
+
+
 @data_app.command("pull")
 def data_pull(
-    provider: Annotated[str, typer.Option("--provider")],
+    provider: Annotated[ProviderName, typer.Option("--provider")],
     datasets: Annotated[str | None, typer.Option("--datasets")] = None,
     start: Annotated[str | None, typer.Option("--start")] = None,
     end: Annotated[str | None, typer.Option("--end")] = None,
@@ -77,8 +104,14 @@ def data_pull(
     log_level: LogLevelOption = None,
 ) -> None:
     """Write raw snapshots for a provider."""
-    _start(config, log_level)
-    _pending("M2")
+    settings, experiment = _start(config, log_level)
+    raw_root = _data_dir(settings, experiment) / "raw" / provider
+    source = get_provider(provider, root=raw_root, max_companies=_max_companies(experiment))
+    names = [item.strip() for item in datasets.split(",")] if datasets else []
+    first = date.fromisoformat(start) if start else date(2001, 1, 1)
+    last = date.fromisoformat(end) if end else date(2020, 12, 31)
+    for manifest in source.pull(names, first, last, raw_root):
+        typer.echo(f"{manifest.dataset:<16} snapshot={manifest.snapshot_id}")
 
 
 @data_app.command("pull-benchmarks")
@@ -94,21 +127,40 @@ def data_pull_benchmarks(
 
 @data_app.command("build-pit")
 def data_build_pit(
-    provider: Annotated[str | None, typer.Option("--provider")] = None,
+    provider: Annotated[ProviderName | None, typer.Option("--provider")] = None,
     snapshot: Annotated[str | None, typer.Option("--snapshot")] = None,
     config: ConfigOption = None,
     log_level: LogLevelOption = None,
 ) -> None:
     """Build all point-in-time tables."""
-    _start(config, log_level)
-    _pending("M2")
+    settings, experiment = _start(config, log_level)
+    name = provider or (experiment.run.provider if experiment else settings.efp_provider)
+    data_dir = _data_dir(settings, experiment)
+    policy = pit_policy(experiment) if experiment is not None else None
+    source = get_provider(name, root=data_dir / "raw" / name, policy=policy, xbrl_map=_xbrl_map())
+    pinned = snapshot or (experiment.data.snapshot if experiment is not None else "latest")
+    if pinned != "latest":
+        source.pin(pinned)
+    build_pit(source, data_dir / "processed" / "pit", policy)
+    typer.echo(f"built {data_dir / 'processed' / 'pit'} from {name}")
 
 
 @data_app.command("verify")
 def data_verify(config: ConfigOption = None, log_level: LogLevelOption = None) -> None:
     """Run the DQ checks and write the DQ report; exit 1 on hard failures."""
-    _start(config, log_level)
-    _pending("M2")
+    settings, experiment = _start(config, log_level)
+    data_dir = _data_dir(settings, experiment)
+    root = data_dir / "processed" / "pit"
+    manifest = read_pit_manifest(root)
+    if manifest["label"]:
+        typer.echo(manifest["label"])
+    provider = str(manifest["provider"])
+    name = experiment.run.name if experiment is not None else provider
+    results = write_reports(root, _tables_dir(data_dir, provider, name))
+    for result in results:
+        typer.echo(f"{result.status.upper():<5} {result.check:<6} {result.detail}")
+    if any(result.status == "fail" for result in results):
+        raise typer.Exit(code=1)
 
 
 @synth_app.command("generate")
@@ -122,14 +174,21 @@ def synth_generate(
 ) -> None:
     """Generate the known-truth synthetic market in raw provider format."""
     _start(config, log_level)
-    _pending("M2")
+    manifests = write_market(
+        SyntheticConfig(seed=seed, n_securities=n_securities, years=years), out
+    )
+    for manifest in manifests:
+        typer.echo(f"{manifest.dataset:<12} {sum(manifest.row_counts.values()):>10,} rows")
 
 
 @universe_app.command("build")
 def universe_build(config: ConfigOption = None, log_level: LogLevelOption = None) -> None:
-    """Build universe_monthly."""
-    _start(config, log_level)
-    _pending("M2")
+    """Rebuild universe_monthly from the stored tables."""
+    settings, experiment = _start(config, log_level)
+    root = _data_dir(settings, experiment) / "processed" / "pit"
+    policy = pit_policy(experiment) if experiment is not None else PitPolicy()
+    rows = rebuild_universe(root, policy)
+    typer.echo(f"universe_monthly: {rows:,} rows")
 
 
 @signals_app.command("compute")
@@ -224,17 +283,24 @@ def rebuild(
     settings, experiment = _start(config, log_level)
     assert experiment is not None
     data_dir = _data_dir(settings, experiment)
+    provider = experiment.run.provider
+    raw_root = data_dir / "raw" / provider
+    snapshots = (
+        {} if provider == "synthetic" else get_provider(provider, root=raw_root).snapshot_ids()
+    )
     runs = run_stages(
-        build_stages(experiment),
+        build_stages(experiment, raw_root),
         StageCache(data_dir / "interim"),
         RunContext(
             config_hash=config_hash(experiment),
-            provider=experiment.run.provider,
-            survivorship_limited=experiment.run.provider == "edgar_free",
+            provider=provider,
+            survivorship_limited=provider == "edgar_free",
+            raw_snapshots=snapshots,
         ),
         force=force,
         from_stage=from_stage,
     )
+    publish(runs, data_dir, _tables_dir(data_dir, provider, experiment.run.name))
     for run in runs:
         state = "cached" if run.cached else "ran"
         typer.echo(f"{run.stage:<20} {state:<7} {run.seconds:8.3f}s {run.key[:12]}")

@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Status:** planning
+**Status:** building. M1 and M2 are done: scaffolding, CI and the point-in-time layer on synthetic and free data.
 
 | | |
 |---|---|
@@ -14,9 +14,9 @@
 
 ## Requirements
 
-- [ ] Point-in-time universe: top 1,000–3,000 US stocks by market cap, rebuilt monthly, including companies that later delisted.
-- [ ] Corporate actions handled: splits, dividends, ticker changes, and delisting returns (with an adjustment when they are missing).
-- [ ] Fundamentals lagged to the SEC filing acceptance date, never to the fiscal period end.
+- [x] Point-in-time universe: top 1,000–3,000 US stocks by market cap, rebuilt monthly, including companies that later delisted. (FR-09)
+- [x] Corporate actions handled: splits, dividends, ticker changes, and delisting returns (with an adjustment when they are missing). (FR-04, FR-05, FR-06, AC-W-05)
+- [x] Fundamentals lagged to the SEC filing acceptance date, never to the fiscal period end. (FR-08, AC-W-06)
 - [ ] A library of 20+ signals across value, momentum, quality, investment and low-risk, each winsorized and cross-sectionally z-scored.
 - [ ] Neutralization to sector, size and beta, with a switch to show results before and after.
 - [ ] Evaluation: rank IC and IC information ratio, quantile spread returns, Fama–MacBeth regressions with Newey–West errors, turnover and decay curves.
@@ -31,7 +31,7 @@ Raw and licensed data live in `data/`, which is git-ignored. Only download scrip
 |---|---|---|
 | [CRSP and Compustat (via WRDS)](https://wrds-www.wharton.upenn.edu) | Academic | The standard: delisted names and point-in-time fundamentals. Free through most universities. |
 | [SEC EDGAR XBRL APIs](https://www.sec.gov/edgar/sec-api-documentation) | Free | Company facts with filing dates. You build point-in-time tables yourself. |
-| [Sharadar (Nasdaq Data Link)](https://data.nasdaq.com) | Paid | Survivorship-free prices and fundamentals. The most affordable serious option outside academia. |
+| [Sharadar](https://sharadar.com) | Paid | Survivorship-free prices and fundamentals. The most affordable serious option outside academia. |
 | [Kenneth French Data Library](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html) | Free | Benchmark factor returns to validate your replications against. |
 | [Open Source Asset Pricing](https://www.openassetpricing.com) | Free | Hundreds of published signals with code. Ready-made replication targets. |
 | [JKP Global Factor Data](https://jkpfactors.com) | Free | Global factor returns and characteristics for tests outside the US. |
@@ -42,7 +42,7 @@ Raw and licensed data live in `data/`, which is git-ignored. Only download scrip
 ### Works (correct and reproducible)
 
 - [ ] Your momentum and size long–short returns correlate above 0.9 with Ken French’s series; value above 0.8 (definitions differ).
-- [ ] An automated leakage test fails the build if any feature uses data timestamped after its rebalance date.
+- [x] An automated leakage test fails the build if any feature uses data timestamped after its rebalance date. (FR-12, AC-W-02)
 - [ ] Delisted stocks are in the universe, and a survivors-only comparison shows the size of the bias you avoided.
 - [ ] The full pipeline reproduces from raw data with one command on a clean machine.
 

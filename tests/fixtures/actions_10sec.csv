@@ -1,0 +1,6 @@
+security_id,ex_date,action,value,new_ticker
+SYN:3,2024-02-12,split,2.0,
+SYN:4,2024-02-08,cash_dividend,0.5,
+SYN:5,2024-02-01,ticker_change,,BBB
+SYN:8,2024-02-14,delist,,
+SYN:9,2024-02-20,merger,,

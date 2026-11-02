@@ -1,0 +1,19 @@
+{
+  "delistings.mean_return": 0.012407741059282709,
+  "forward.mean_12m": 0.3796515781312689,
+  "forward.mean_1m": 0.02602184156988336,
+  "fundamentals.log_assets": 21.833064156152474,
+  "fundamentals.restatements": 663.0,
+  "prices.flagged": 10.0,
+  "prices.mean_ret": 0.001248032309653363,
+  "prices.std_ret": 0.0235301586965278,
+  "rows.corp_actions": 1933.0,
+  "rows.delistings": 55.0,
+  "rows.filings": 5369.0,
+  "rows.forward_returns": 164309.0,
+  "rows.fundamentals_pit": 144172.0,
+  "rows.prices_daily": 308485.0,
+  "rows.securities": 253.0,
+  "rows.universe_monthly": 12314.0,
+  "universe.mean_size": 128.27083333333334
+}

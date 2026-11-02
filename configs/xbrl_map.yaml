@@ -1,0 +1,36 @@
+# Canonical item -> ordered us-gaap or dei tags. The first tag present wins (DQ-06).
+total_assets: [Assets]
+current_assets: [AssetsCurrent]
+cash:
+  - CashAndCashEquivalentsAtCarryingValue
+  - CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents
+inventory: [InventoryNet]
+ppe_gross: [PropertyPlantAndEquipmentGross]
+ppe_net: [PropertyPlantAndEquipmentNet]
+total_liabilities: [Liabilities]
+current_liabilities: [LiabilitiesCurrent]
+short_term_debt: [DebtCurrent, ShortTermBorrowings, LongTermDebtCurrent]
+long_term_debt: [LongTermDebtNoncurrent, LongTermDebt]
+income_taxes_payable: [AccruedIncomeTaxesCurrent, TaxesPayableCurrent]
+deferred_taxes: [DeferredIncomeTaxLiabilitiesNet, DeferredTaxLiabilitiesNoncurrent]
+stockholders_equity:
+  - StockholdersEquity
+  - StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest
+preferred_stock: [PreferredStockValue]
+minority_interest: [MinorityInterest]
+revenue:
+  - RevenueFromContractWithCustomerExcludingAssessedTax
+  - Revenues
+  - SalesRevenueNet
+  - RevenueFromContractWithCustomerIncludingAssessedTax
+cogs: [CostOfGoodsAndServicesSold, CostOfRevenue, CostOfGoodsSold]
+operating_income: [OperatingIncomeLoss]
+net_income: [NetIncomeLoss, ProfitLoss]
+income_before_extra: [IncomeLossFromContinuingOperations, NetIncomeLoss]
+depreciation:
+  - DepreciationDepletionAndAmortization
+  - DepreciationAmortizationAndAccretionNet
+  - DepreciationAndAmortization
+cfo: [NetCashProvidedByUsedInOperatingActivities]
+eps_diluted: [EarningsPerShareDiluted]
+shares_out: [EntityCommonStockSharesOutstanding, CommonStockSharesOutstanding]
