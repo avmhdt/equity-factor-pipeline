@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Bottom line:** a composite of 26 published signals earns a real gross return, with FF5 + UMD alpha of 14.3% a year (t 7.7). As a monthly equal-weight decile book it doesn't survive its costs: at $100M the net Sharpe is -1.60 with no trade cap and -0.68 with one, on the Corwin-Schultz spreads D-06 set for the headline. Those spreads turned out to be far too high, so after that failure the book was rerun on other spread models. Better spreads don't rescue it: on published spreads the net Sharpe is -1.18 and -0.19, because market impact is the larger cost. The best case found, the top 1,000 on published spreads, is about zero.
+**Bottom line:** a composite of 26 published signals earns a real gross return, with FF5 + UMD alpha of 14.3% a year (t 7.7). On the costs D-06 set for the headline it fails: at $100M the net Sharpe is -1.60 with no trade cap and -0.68 with one, and no fund size meets the capacity test. Two follow-up rounds, both run after that failure, found those costs too high: Corwin-Schultz reads 18.5x published spreads on large caps, and impact coefficient 1.0 is 2.7x to 6.5x published estimates. On published spreads and published impact laws the capped book has a Sharpe of 0.37 to 0.44, with alpha at t 2.4 and 2.9. That misses the t > 3.0 bar set before those runs, so a net edge is **not established**, and it's the kind of result a second look after a failure tends to find.
 
 This README is rendered by `efp report`. Every number comes from [results/readme_numbers.json](results/readme_numbers.json), and a test fails the build if one doesn't. Family memos are in [reports/memos](reports/memos).
 
@@ -59,7 +59,7 @@ On OSAP's series, pooled returns fall 30% out of sample (t -1.0) and 39% after p
 
 ### Significance
 
-All 517 logged trials are judged against t > 3.0 (Harvey, Liu and Zhu, 2016) and BHY-adjusted p-values. 35 trials clear t = 3.0 with a positive sign, and 35 survive BHY at 5%. Many of those are the same composites gross. The hurdle is two-sided, so the net rows that also clear it do so because they lose money significantly.
+All 613 logged trials are judged against t > 3.0 (Harvey, Liu and Zhu, 2016) and BHY-adjusted p-values. 35 trials clear t = 3.0 with a positive sign, and 35 survive BHY at 5%. Many of those are the same composites gross. The hurdle is two-sided, so the net rows that also clear it do so because they lose money significantly.
 
 Neutralizing to sector, size and beta usually shrinks an IC without killing it:
 
@@ -140,17 +140,82 @@ What this supports:
 - **It isn't why the book fails.** Impact is 32.0% a year either way. With the published table the top 3,000 still nets -22.5% uncapped and -2.7% capped.
 - **The best case is about zero, not positive.** The top 1,000 on the size table nets -0.5% uncapped and 0.8% capped, with capped alpha of 1.1% (t 0.6). It's negative from 2010 on, at -1.1%, and it's the best of 3 models across 8 books, picked after the fact.
 - **Capacity exists only in that cell, and it's small:** about $20M at impact x1, about $89M at x0.5 and below the grid at x2.
-- **Impact is now the assumption to question.** It's the largest cost in the headline book under every model, and unlike spreads it hasn't been checked against published data. These runs don't test it.
+- **Impact was the next assumption to question.** It's the largest cost in the headline book under every model, so it was tested next.
+
+### Impact laws, the second round after the failure
+
+This also ran after the net failure, at the owner's request, and it's the second such round. Coefficient 1.0 stays in the table and the headline doesn't change. Every run is in the trial log, and nothing was fitted to this data. The rule below was committed before any result existed:
+
+- Compare every law as average execution cost per dollar, converting published values to that basis.
+- Report every law that can be computed from its paper, whichever way it moves the result.
+- Only the 10% capped book is inside the sources' range, so uncapped figures don't count.
+- A positive reading needs capped alpha above t = 3.0 and a positive result from 2010, under both fitted laws with the size table. Even a pass would only be a hypothesis for new data.
+
+The laws, as cost in bps of the trade for a stock with 2% daily volatility:
+
+| Law | At 1% of daily volume | At 10% |
+|---|---|---|
+| Headline, coefficient 1.0 | 20.0 | 63.2 |
+| Y = 1.0 as a peak, averaged at 2/3 (Tóth 2011) | 13.3 | 42.2 |
+| Almgren 2005, large caps | 3.1 | 19.8 |
+| Zarinelli 2015, large | 3.8 | 12.4 |
+| Frazzini size terms, a check only | 7.3 | 32.1 |
+
+The studies describe a peak or a realized cost, and the fitted ones sit well below coefficient 1.0: 2.7x to 6.5x at 1% of daily volume. Zarinelli's fit is in units of the daily range, about 1.6x a return deviation, so that measure is used here. Frazzini's table has no intercept and its measure includes spread, so it's a check and not a model.
+
+![Impact laws](reports/figures/impact_models.png)
+
+Top 3,000 at $100M, next-day VWAP proxy:
+
+| Impact and spreads | ADV cap Sharpe | 2010 on | Capped alpha (t) | No cap, outside the sources' range |
+|---|---|---|---|---|
+| Coefficient 1.0, Corwin-Schultz | -0.68 | -0.77 | -10.6% (-5.3) | -1.60 |
+| Coefficient 1.0, size table | -0.19 | -0.27 | -3.6% (-1.9) | -1.18 |
+| Y = 1.0 averaged, size table | 0.05 | -0.04 | -0.2% (-0.1) | -0.69 |
+| Almgren, Corwin-Schultz | -0.12 | -0.24 | -2.6% (-1.4) | not meaningful |
+| Almgren, size table | 0.37 | 0.28 | 4.4% (2.4) | not meaningful |
+| Zarinelli, Corwin-Schultz | -0.06 | -0.18 | -1.8% (-1.0) | -0.17 |
+| Zarinelli, size table | 0.44 | 0.34 | 5.2% (2.9) | 0.40 |
+
+Almgren's linear term blows up on trades of many days' volume, so its uncapped figures mean nothing, which is why the rule set them aside.
+
+The top 1,000 on the size table:
+
+| Impact | ADV cap Sharpe | 2010 on | Capped alpha (t) | Capacity |
+|---|---|---|---|---|
+| Coefficient 1.0 | 0.07 | -0.10 | 1.1% (0.6) | about $20M |
+| Y = 1.0 averaged | 0.26 | 0.04 | 3.1% (1.6) | about $47M |
+| Almgren | 0.52 | 0.25 | 6.0% (2.9) | about $412M |
+| Zarinelli | 0.54 | 0.25 | 6.2% (3.0) | about $749M |
+
+What this supports:
+
+- **Coefficient 1.0 is too high for this kind of order.** Published estimates are several times lower. The headline figures overstate impact as well as spreads.
+- **Fixing impact alone isn't enough.** On Corwin-Schultz spreads the capped book stays negative under every law, at -0.12 and -0.06.
+- **Fixing both gives a positive estimate that misses the bar.** The rule is not met for the top 3,000: alpha is 4.4% (t 2.4) and 5.2% (t 2.9). It's also not met for the top 1,000, where one law clears t = 3.0 and the other, at t 2.9, doesn't.
+- **So a net edge is not established,** and neither is its absence. The honest position is that the D-06 costs were too high to judge this book, and the corrected costs leave the answer open.
+- **Capacity moves a lot on these assumptions.** On the size table the top 1,000 goes from about $20M at coefficient 1.0 to about $412M or about $749M. The top 3,000 stays below the grid.
+
+Why not to lean on the positive estimates:
+
+- **It's a second look after a failure,** across 4 laws, 2 spread models and 8 books, on data already seen.
+- **The sources describe other trades.** They measure single orders by institutions, not a book of hundreds of names all trading on one day.
+- **The book is mostly outside their range.** Before the cap, 28% of its traded dollars are within 2% of ADV, 58% within 10%, and 8% above a full day's volume. Only 20% is in the top 1,000 names, while Almgren's sample is large caps.
+- **The capped book isn't the book specified.** It misses trades and drifts, with net exposure up to 0.38 of NAV.
+- **The sources disagree.** Y is "of order unity" in one and 0.12 to 0.19 in another, partly because of units and partly not.
+- **The inputs are snapshots.** The size table holds 2013 and 2015 spreads, and Zarinelli's sample is 2007 to 2009.
+
+Measured execution costs on this kind of book, or a test on data not yet seen, would settle it. More runs on this data wouldn't.
 
 ### How many tries
 
-The headline rests on 517 logged trials: 86 replication, 209 composite, 40 value, 66 momentum, 44 quality, 32 investment, 32 low risk and 8 size. 26 were run from a dirty tree and are kept. 32 of the composite rows are the later spread-model runs, marked in `x_note`. `efp explog export` hands the log to the sibling backtest-overfitting-lab repo.
+The headline rests on 613 logged trials: 86 replication, 305 composite, 40 value, 66 momentum, 44 quality, 32 investment, 32 low risk and 8 size. 26 were run from a dirty tree and are kept. 32 composite rows are the spread round and 96 are the impact round, both marked in `x_note`. `efp explog export` hands the log to the sibling backtest-overfitting-lab repo.
 
 ## What failed
 
 - **The headline hypothesis.** The composite doesn't pay for itself as specified, at any size tested.
 - **4 replications** fall short: `sue` r 0.69, `noa` r 0.46, `accruals` r 0.39, `fscore` r 0.22. Each is listed with its likely cause in the table. Tuning stopped there.
-- **Capacity has almost no dollar answer.** The book fails the test at the bottom of the grid in all but one cell, and that cell is the size table on the top 1,000, at about $20M.
+- **Capacity has no answer on the D-06 costs.** The book fails the test at the bottom of the grid. Only the top 1,000 on published spreads gets a figure, and it ranges from about $20M to about $749M depending on the impact law.
 - **Our own decay test** is too short to say anything.
 - **Abdi-Ranaldo** didn't improve on Corwin-Schultz against published spreads for these stocks.
 - **Neutralized `ind_mom`** was noise for two milestones before a table moved and gave it away. It's one number per industry, so sector dummies span it. It's now left out, and the old trial rows stay in the log.
@@ -159,7 +224,7 @@ The headline rests on 517 logged trials: 86 replication, 209 composite, 40 value
 
 - **The spread estimates are poor.** Corwin-Schultz reads 27.2 bps on large caps against a published 1.47, and Abdi-Ranaldo is no closer. The headline keeps Corwin-Schultz because D-06 set it, so its net figures overstate spread cost.
 - **The size table is a snapshot.** It holds 2013 and 2015 figures in fixed dollar bands, which understates spreads in earlier years and ignores price.
-- **Impact is unverified.** It's the largest cost in the headline book, and none of this tests the coefficient of 1.0. A better execution model could change the net result, and that hasn't been measured.
+- **Impact is only checked against published studies,** not measured on this book. Those studies describe single institutional orders and disagree with each other. Coefficient 1.0 overstates them, and how far is uncertain.
 - **The book is deliberately naive.** Monthly rebalancing to equal weight has no turnover control. A desk would trade less.
 - **Uncapped and capped are both flawed.** Uncapped positions reach 3.7x ADV. Capped books miss trades and drift, with net exposure up to 0.38 of NAV.
 - **Restatements and items.** Sharadar's `AR*` dimensions are as-reported, but it lacks gross PP&E, taxes payable, deferred taxes and preferred stock. Book equity is plain `equity`.
@@ -195,7 +260,9 @@ uv run efp rebuild --config configs/headline.yaml
 
 **What happens to Sharpe at next-day VWAP instead of the close?** Very little gross: 1.10 to 1.07. Net of costs it goes from -1.56 to -1.60.
 
-**Would a better spread model have saved it?** No. It shrinks the loss, but the headline book stays negative on published spreads, at -1.18 uncapped and -0.19 capped. Impact is the larger problem.
+**Would a better spread model have saved it?** No, not by itself. It shrinks the loss, but the headline book stays negative on published spreads with coefficient 1.0, at -1.18 uncapped and -0.19 capped.
+
+**Would better impact estimates have saved it?** Not established. With published spreads and published impact laws the capped book's alpha is positive, but at t 2.4 and 2.9 it misses the bar set before those runs.
 
 **What do you do with an anomaly that fails?** Report it with a reason. Tuning a definition to raise a correlation is logged with its effect in [docs/decisions.md](docs/decisions.md).
 

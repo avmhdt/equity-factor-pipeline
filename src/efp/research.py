@@ -14,6 +14,13 @@ from efp.attribution.ff import FACTORS, attribute
 from efp.backtest.capacity import capacity_curve
 from efp.backtest.costs import SPREAD_MODELS
 from efp.backtest.engine import BacktestResult, SimulationConfig
+from efp.backtest.impact_study import (
+    LAWS,
+    SPREADS,
+    cost_checks,
+    simulation_for,
+    trade_profile,
+)
 from efp.backtest.portfolio import target_weights
 from efp.backtest.run import (
     BacktestConfig,
@@ -45,7 +52,12 @@ from efp.evaluation.survivorship import bias_table, delisted_names_by_year, seri
 from efp.evaluation.value_gap import decompose
 from efp.explog import TrialRecord, log_trial
 from efp.panel import all_signals
-from efp.reports.figures import capacity_lines, post_publication_bars, spread_model_bars
+from efp.reports.figures import (
+    capacity_lines,
+    impact_model_bars,
+    post_publication_bars,
+    spread_model_bars,
+)
 from efp.reports.tables import write_table
 from efp.signals.registry import spec_of
 from eqpit import calendar
@@ -54,6 +66,7 @@ from eqpit.store import PitStore
 
 LICENSED = ("sharadar", "wrds")
 LATE_SPREAD_NOTE = "spread model run after the Corwin-Schultz net failure"
+LATE_IMPACT_NOTE = "impact model run after the net failure, second round"
 EXECUTION_LABELS = {
     "close": "same close",
     "next_open": "next open",
@@ -314,6 +327,7 @@ def _backtest_trial(
     config: BacktestConfig,
     provider: str,
     net: bool,
+    impact_law: str = "",
 ) -> TrialRecord:
     costs = asdict(config.costs)
     model = costs.pop("spread_model")
@@ -334,6 +348,9 @@ def _backtest_trial(
     if model != SPREAD_MODELS[0]:
         params["spread_model"] = model
         note = LATE_SPREAD_NOTE
+    if impact_law:
+        params["impact_model"] = impact_law
+        note = LATE_IMPACT_NOTE
     return TrialRecord(
         "composite",
         params,
@@ -525,6 +542,101 @@ def spread_model_task(
         checks,
         table.filter(pl.col("composite").eq(names[0])),
         sink.figures / "spread_models.png",
+        dev_only,
+    )
+    return table
+
+
+def impact_model_task(
+    store: PitStore,
+    ends: list[date],
+    composites: Path,
+    names: Sequence[str],
+    factors: pl.DataFrame,
+    config: BacktestConfig,
+    sink: Sink,
+    provider: str,
+    dev_only: bool,
+) -> pl.DataFrame:
+    """Each published impact law with each spread model, capped and uncapped, with capacity.
+
+    Args:
+        store: the point-in-time store.
+        ends: month ends.
+        composites: directory of composite score files.
+        names: the composites that get a capacity test.
+        factors: monthly factors.
+        config: backtest choices, on the headline models.
+        sink: tables and trial log.
+        provider: data provider.
+        dev_only: watermark figures.
+    """
+    mode = config.headline_execution
+    rows: list[dict[str, object]] = []
+    capacity: list[dict[str, object]] = []
+    profiles: list[dict[str, object]] = []
+    paths = [
+        path
+        for path in sorted(composites.glob("*.parquet"))
+        if path.stem in names or path.stem.startswith("family_")
+    ]
+    for spread in SPREADS:
+        chosen = replace(
+            config, costs=replace(config.costs, spread_model=spread), executions=(mode,)
+        )
+        market = load_market(store, ends, chosen)
+        for path in paths:
+            scores = pl.read_parquet(path)
+            if spread == SPREADS[0] and path.stem in names:
+                profiles.append(trade_profile(path.stem, scores, market, chosen))
+            for law in LAWS:
+                base = simulation_for(law, chosen)
+                run = run_model(path.stem, spread, scores, market, chosen, base)
+                rows += [
+                    row | {"impact_model": law.name} for row in model_rows(run, factors, chosen.aum)
+                ]
+                if law is not LAWS[0]:
+                    limit = chosen.capacity.max_participation
+                    capped = replace(base, max_participation=limit)
+                    for result, simulation in ((run.uncapped, base), (run.capped, capped)):
+                        sink.record(
+                            _backtest_trial(
+                                path.stem,
+                                mode,
+                                result.series,
+                                simulation,
+                                chosen,
+                                provider,
+                                True,
+                                law.name,
+                            )
+                        )
+                if path.stem in names:
+
+                    def book(
+                        simulation: SimulationConfig,
+                        scores: pl.DataFrame = scores,
+                        market: Market = market,
+                        chosen: BacktestConfig = chosen,
+                    ) -> BacktestResult:
+                        return run_book(scores, market, mode, simulation, chosen)
+
+                    found = capacity_rows(path.stem, spread, book, factors, chosen, base, (1.0,))
+                    capacity += [row | {"impact_model": law.name} for row in found]
+    table = pl.DataFrame(rows, infer_schema_length=None)
+    leading = ("composite", "impact_model", "spread_model")
+    table = table.select(*leading, pl.exclude(*leading))
+    write_table(table, sink.tables, "impact_models")
+    limits = pl.DataFrame(capacity, infer_schema_length=None)
+    limits = limits.select(*leading, pl.exclude(*leading))
+    write_table(limits, sink.tables, "impact_model_capacity")
+    checks = cost_checks()
+    write_table(checks, sink.tables, "impact_model_checks")
+    write_table(pl.DataFrame(profiles), sink.tables, "impact_trade_profile")
+    impact_model_bars(
+        checks,
+        table.filter(pl.col("composite").eq(names[0])),
+        sink.figures / "impact_models.png",
         dev_only,
     )
     return table

@@ -26,6 +26,8 @@ Our value factor is not HML. Its correlation with HML falls from {{gap.hml_ff_co
 
 Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is {{spread.table.family.value.net_sharpe}} with no cap and {{spread.table.family.value.capped_sharpe}} with one. That's a follow-up, not a test, and the result is still below zero.
 
+A second round after the failure added published impact laws to published spreads. With the trade cap the Sharpe is {{impact.almgren.table.family.value.capped_sharpe}} under Almgren and {{impact.zarinelli.table.family.value.capped_sharpe}} under Zarinelli, with alpha of {{impact.almgren.table.family.value.capped_alpha}} (t {{impact.almgren.table.family.value.capped_alpha_t}}) and {{impact.zarinelli.table.family.value.capped_alpha}} (t {{impact.zarinelli.table.family.value.capped_alpha_t}}). Neither clears t = {{spec.hurdle}}, so no net edge is established, and a second look at the same data is weak evidence either way.
+
 ![Monthly IC](../figures/ic_value.png)
 
 ![IC by horizon](../figures/decay_value.png)

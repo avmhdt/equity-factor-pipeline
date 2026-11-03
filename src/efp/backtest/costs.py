@@ -121,12 +121,25 @@ def trading_inputs(prices: pl.DataFrame, ends: list[date], config: CostConfig) -
                 / 2.0
             ).alias("half_spread")
         )
+    extras: list[pl.Expr | str] = []
+    if "mcap" in prices.columns:
+        extras.append("mcap")
+    if "open" in prices.columns:
+        extras.append("daily_range")
+        estimated = estimated.with_columns(
+            ((pl.col("high") - pl.col("low")) / pl.col("open"))
+            .rolling_mean(config.vol_days, min_samples=10)
+            .over("security_id")
+            .fill_nan(None)
+            .alias("daily_range")
+        )
     return estimated.filter(pl.col("date").is_in(ends)).select(
         pl.col("date").alias("asof"),
         "security_id",
         pl.col("half_spread").clip(floor),
         pl.col("daily_vol").fill_nan(None),
         "adv",
+        *extras,
     )
 
 

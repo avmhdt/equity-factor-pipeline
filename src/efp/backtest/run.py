@@ -77,7 +77,10 @@ def load_market(store: PitStore, ends: list[date], config: BacktestConfig) -> Ma
     prices = labels.daily_prices(PRICE_COLUMNS, history["security_id"].unique().to_list(), first)
     inputs = trading_inputs(prices, ends, config.costs)
     ranks = history.select(
-        "asof", "security_id", borrow_rates(pl.col("rank"), config.costs).alias("borrow")
+        "asof",
+        "security_id",
+        "rank",
+        borrow_rates(pl.col("rank"), config.costs).alias("borrow"),
     )
     forward = labels.forward_returns((1,)).select("asof", "security_id", "fwd_ret")
     following = next_session_rows(prices, ends)

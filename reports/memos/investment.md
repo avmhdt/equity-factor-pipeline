@@ -25,6 +25,8 @@ Net of costs at $100M the Sharpe is -1.64 with no trade cap and -0.76 with one.
 
 Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.17 with no cap and -0.25 with one. That's a follow-up, not a test, and the result is still below zero.
 
+A second round after the failure added published impact laws to published spreads. With the trade cap the Sharpe is 0.31 under Almgren and 0.37 under Zarinelli, with alpha of 2.7% (t 1.7) and 3.1% (t 2.0). Neither clears t = 3.0, so no net edge is established, and a second look at the same data is weak evidence either way.
+
 ![Monthly IC](../figures/ic_investment.png)
 
 ![IC by horizon](../figures/decay_investment.png)

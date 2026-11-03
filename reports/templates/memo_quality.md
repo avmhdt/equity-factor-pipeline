@@ -24,6 +24,8 @@ As a family, an equal-weight neutralized book has a gross Sharpe of {{family.qua
 
 Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is {{spread.table.family.quality.net_sharpe}} with no cap and {{spread.table.family.quality.capped_sharpe}} with one. That's a follow-up, not a test, and the result is still below zero.
 
+A second round after the failure added published impact laws to published spreads. With the trade cap the Sharpe is {{impact.almgren.table.family.quality.capped_sharpe}} under Almgren and {{impact.zarinelli.table.family.quality.capped_sharpe}} under Zarinelli, with alpha of {{impact.almgren.table.family.quality.capped_alpha}} (t {{impact.almgren.table.family.quality.capped_alpha_t}}) and {{impact.zarinelli.table.family.quality.capped_alpha}} (t {{impact.zarinelli.table.family.quality.capped_alpha_t}}). Neither clears t = {{spec.hurdle}}, so no net edge is established, and a second look at the same data is weak evidence either way.
+
 ![Monthly IC](../figures/ic_quality.png)
 
 ![IC by horizon](../figures/decay_quality.png)

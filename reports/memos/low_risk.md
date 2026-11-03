@@ -25,6 +25,8 @@ The short side matters too. High-volatility small caps are the stocks hardest to
 
 Rerun after the net failure on published spreads instead of Corwin-Schultz, the Sharpe is -1.89 with no cap and -0.81 with one. That's a follow-up, not a test, and the result is still below zero.
 
+A second round after the failure added published impact laws to published spreads. With the trade cap the Sharpe is -0.18 under Almgren and -0.10 under Zarinelli, with alpha of -1.2% (t -0.6) and 0.0% (t 0.0). Neither clears t = 3.0, so no net edge is established, and a second look at the same data is weak evidence either way.
+
 ![Monthly IC](../figures/ic_low_risk.png)
 
 ![IC by horizon](../figures/decay_low_risk.png)

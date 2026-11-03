@@ -10,6 +10,7 @@ import numpy as np
 import polars as pl
 
 from efp.backtest.costs import CostConfig
+from efp.backtest.impact_models import ImpactForm, almgren_cost, zarinelli_cost
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class SimulationConfig:
         max_participation: largest trade as a share of ADV; None is no limit.
         spread_scale: multiplier on half-spreads, zero for a cost-free run.
         impact_scale: multiplier on impact.
+        impact_form: the impact law; D-06 sets the square root for headline results.
         borrow_scale: multiplier on borrow.
         costs: D-06 parameters.
     """
@@ -29,6 +31,7 @@ class SimulationConfig:
     max_participation: float | None = None
     spread_scale: float = 1.0
     impact_scale: float = 1.0
+    impact_form: ImpactForm = "square_root"
     borrow_scale: float = 1.0
     costs: CostConfig = field(default_factory=CostConfig)
 
@@ -41,25 +44,40 @@ class BacktestResult:
     neutrality: float
 
 
-Trading = dict[date, dict[str, tuple[float | None, float | None, float | None, float | None]]]
-"""Per rebalance and security: half-spread, daily volatility, ADV and borrow rate."""
+Trading = dict[date, dict[str, tuple[float | None, ...]]]
+"""Per rebalance and security: half-spread, daily deviation, ADV, borrow rate, market cap, rank
+and daily range. The last three feed only the published impact laws."""
 Returns = dict[date, dict[str, float]]
 """Per rebalance and security: the return to the next execution."""
+_NO_INPUTS: tuple[float | None, ...] = (None,) * 7
+_COLUMNS = ("half_spread", "daily_vol", "adv", "borrow", "mcap", "rank", "daily_range")
 
 
 def trading_lookup(inputs: pl.DataFrame, ranks: pl.DataFrame) -> Trading:
     """Costs for every name on a date, held or not: a stock leaving the book trades too.
 
     Args:
-        inputs: ``asof``, ``security_id``, ``half_spread``, ``daily_vol``, ``adv``.
-        ranks: ``asof``, ``security_id``, ``borrow`` (annual decimal rate).
+        inputs: ``asof``, ``security_id``, ``half_spread``, ``daily_vol``, ``adv``, and
+            optionally ``mcap`` and ``daily_range``.
+        ranks: ``asof``, ``security_id``, ``borrow`` (annual decimal rate), optionally ``rank``.
     """
     joined = inputs.join(ranks, on=["asof", "security_id"], how="full", coalesce=True)
-    columns = ["security_id", "half_spread", "daily_vol", "adv", "borrow"]
+    missing = [name for name in _COLUMNS if name not in joined.columns]
+    joined = joined.with_columns(pl.lit(None, dtype=pl.Float64).alias(name) for name in missing)
     return {
-        key[0]: {row[0]: row[1:] for row in part.select(columns).iter_rows()}
+        key[0]: {row[0]: row[1:] for row in part.select("security_id", *_COLUMNS).iter_rows()}
         for key, part in joined.group_by(["asof"], maintain_order=True)
     }
+
+
+def _published_cost(
+    form: ImpactForm, share: float, vol: float, depth: float, inputs: tuple[float | None, ...]
+) -> float:
+    """Cost per dollar under a published law, for a trade of ``share`` of daily volume."""
+    mcap, rank, daily_range = inputs[4], inputs[5], inputs[6]
+    if form == "almgren_2005":
+        return almgren_cost(share, vol, (mcap or depth) / depth)
+    return zarinelli_cost(share, daily_range or 0.0, None if rank is None else int(rank))
 
 
 def return_lookup(returns: pl.DataFrame) -> Returns:
@@ -118,7 +136,8 @@ def simulate(
         for name in sorted(set(target) | set(held)):
             old = held.get(name, 0.0)
             change = target.get(name, 0.0) - old
-            half_spread, vol, depth, borrow = today.get(name, (None, None, None, None))
+            inputs = today.get(name, _NO_INPUTS)
+            half_spread, vol, depth, borrow = inputs[0], inputs[1], inputs[2], inputs[3]
             if config.max_participation is not None and config.aum > 0 and depth:
                 limit = config.max_participation * depth / config.aum
                 change = float(np.clip(change, -limit, limit))
@@ -126,7 +145,12 @@ def simulate(
             traded += size
             spread_cost += size * (floor if half_spread is None else half_spread)
             if config.aum > 0 and depth and vol and size > 0:
-                impact_cost += size * k * vol * np.sqrt(size * config.aum / depth)
+                if config.impact_form == "square_root":
+                    impact_cost += size * k * vol * np.sqrt(size * config.aum / depth)
+                else:
+                    share = size * config.aum / depth
+                    rate = _published_cost(config.impact_form, share, vol, depth, inputs)
+                    impact_cost += size * config.impact_scale * rate
             position = old + change
             if position != 0.0:
                 after[name] = position

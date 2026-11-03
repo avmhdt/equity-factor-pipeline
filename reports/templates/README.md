@@ -2,7 +2,7 @@
 
 > Point-in-time data, a library of factors, and the evaluation stack a systematic equity desk uses every day.
 
-**Bottom line:** a composite of {{spec.signals}} published signals earns a real gross return, with FF5 + UMD alpha of {{headline.gross_alpha}} a year (t {{headline.gross_alpha_t}}). As a monthly equal-weight decile book it doesn't survive its costs: at {{spec.aum}} the net Sharpe is {{headline.net_sharpe}} with no trade cap and {{headline.capped_sharpe}} with one, on the Corwin-Schultz spreads D-06 set for the headline. Those spreads turned out to be far too high, so after that failure the book was rerun on other spread models. Better spreads don't rescue it: on published spreads the net Sharpe is {{spread.table.headline.net_sharpe}} and {{spread.table.headline.capped_sharpe}}, because market impact is the larger cost. The best case found, the top {{spec.variant}} on published spreads, is about zero.
+**Bottom line:** a composite of {{spec.signals}} published signals earns a real gross return, with FF5 + UMD alpha of {{headline.gross_alpha}} a year (t {{headline.gross_alpha_t}}). On the costs D-06 set for the headline it fails: at {{spec.aum}} the net Sharpe is {{headline.net_sharpe}} with no trade cap and {{headline.capped_sharpe}} with one, and no fund size meets the capacity test. Two follow-up rounds, both run after that failure, found those costs too high: Corwin-Schultz reads {{check.cs.top.ratio}}x published spreads on large caps, and impact coefficient {{spec.impact}} is {{impactcheck.ratio_low}}x to {{impactcheck.ratio_high}}x published estimates. On published spreads and published impact laws the capped book has a Sharpe of {{impact.almgren.table.headline.capped_sharpe}} to {{impact.zarinelli.table.headline.capped_sharpe}}, with alpha at t {{impact.almgren.table.headline.capped_alpha_t}} and {{impact.zarinelli.table.headline.capped_alpha_t}}. That misses the t > {{spec.hurdle}} bar set before those runs, so a net edge is **not established**, and it's the kind of result a second look after a failure tends to find.
 
 This README is rendered by `efp report`. Every number comes from [results/readme_numbers.json](results/readme_numbers.json), and a test fails the build if one doesn't. Family memos are in [reports/memos](reports/memos).
 
@@ -140,17 +140,82 @@ What this supports:
 - **It isn't why the book fails.** Impact is {{spread.table.headline.impact}} a year either way. With the published table the top {{spec.universe}} still nets {{spread.table.headline.net_mean}} uncapped and {{spread.table.headline.capped_mean}} capped.
 - **The best case is about zero, not positive.** The top {{spec.variant}} on the size table nets {{spread.table.top1000.net_mean}} uncapped and {{spread.table.top1000.capped_mean}} capped, with capped alpha of {{spread.table.top1000.capped_alpha}} (t {{spread.table.top1000.capped_alpha_t}}). It's negative from {{spec.recent_start}} on, at {{spread.table.top1000.recent.capped_mean}}, and it's the best of {{spec.models}} models across {{spec.books}} books, picked after the fact.
 - **Capacity exists only in that cell, and it's small:** {{spread.table.top1000.capacity_1}} at impact x1, {{spread.table.top1000.capacity_0.5}} at x{{spec.low_multiplier}} and {{spread.table.top1000.capacity_2}} at x{{spec.high_multiplier}}.
-- **Impact is now the assumption to question.** It's the largest cost in the headline book under every model, and unlike spreads it hasn't been checked against published data. These runs don't test it.
+- **Impact was the next assumption to question.** It's the largest cost in the headline book under every model, so it was tested next.
+
+### Impact laws, the second round after the failure
+
+This also ran after the net failure, at the owner's request, and it's the second such round. Coefficient {{spec.impact}} stays in the table and the headline doesn't change. Every run is in the trial log, and nothing was fitted to this data. The rule below was committed before any result existed:
+
+- Compare every law as average execution cost per dollar, converting published values to that basis.
+- Report every law that can be computed from its paper, whichever way it moves the result.
+- Only the {{spec.adv_cap}} capped book is inside the sources' range, so uncapped figures don't count.
+- A positive reading needs capped alpha above t = {{spec.hurdle}} and a positive result from {{spec.recent_start}}, under both fitted laws with the size table. Even a pass would only be a hypothesis for new data.
+
+The laws, as cost in bps of the trade for a stock with 2% daily volatility:
+
+| Law | At 1% of daily volume | At 10% |
+|---|---|---|
+| Headline, coefficient {{spec.impact}} | {{impactcheck.square_root_k1.1}} | {{impactcheck.square_root_k1.10}} |
+| Y = {{spec.impact}} as a peak, averaged at {{spec.peak_to_average}} (Tóth 2011) | {{impactcheck.square_root_average.1}} | {{impactcheck.square_root_average.10}} |
+| Almgren 2005, large caps | {{impactcheck.almgren_2005.1}} | {{impactcheck.almgren_2005.10}} |
+| Zarinelli 2015, large | {{impactcheck.zarinelli_large.1}} | {{impactcheck.zarinelli_large.10}} |
+| Frazzini size terms, a check only | {{impactcheck.frazzini_size_terms.1}} | {{impactcheck.frazzini_size_terms.10}} |
+
+The studies describe a peak or a realized cost, and the fitted ones sit well below coefficient {{spec.impact}}: {{impactcheck.ratio_low}}x to {{impactcheck.ratio_high}}x at 1% of daily volume. Zarinelli's fit is in units of the daily range, about 1.6x a return deviation, so that measure is used here. Frazzini's table has no intercept and its measure includes spread, so it's a check and not a model.
+
+![Impact laws](reports/figures/impact_models.png)
+
+Top {{spec.universe}} at {{spec.aum}}, next-day VWAP proxy:
+
+| Impact and spreads | ADV cap Sharpe | {{spec.recent_start}} on | Capped alpha (t) | No cap, outside the sources' range |
+|---|---|---|---|---|
+| Coefficient {{spec.impact}}, Corwin-Schultz | {{impact.k1.cs.headline.capped_sharpe}} | {{impact.k1.cs.headline.recent.capped_sharpe}} | {{impact.k1.cs.headline.capped_alpha}} ({{impact.k1.cs.headline.capped_alpha_t}}) | {{impact.k1.cs.headline.net_sharpe}} |
+| Coefficient {{spec.impact}}, size table | {{impact.k1.table.headline.capped_sharpe}} | {{impact.k1.table.headline.recent.capped_sharpe}} | {{impact.k1.table.headline.capped_alpha}} ({{impact.k1.table.headline.capped_alpha_t}}) | {{impact.k1.table.headline.net_sharpe}} |
+| Y = {{spec.impact}} averaged, size table | {{impact.average.table.headline.capped_sharpe}} | {{impact.average.table.headline.recent.capped_sharpe}} | {{impact.average.table.headline.capped_alpha}} ({{impact.average.table.headline.capped_alpha_t}}) | {{impact.average.table.headline.net_sharpe}} |
+| Almgren, Corwin-Schultz | {{impact.almgren.cs.headline.capped_sharpe}} | {{impact.almgren.cs.headline.recent.capped_sharpe}} | {{impact.almgren.cs.headline.capped_alpha}} ({{impact.almgren.cs.headline.capped_alpha_t}}) | not meaningful |
+| Almgren, size table | {{impact.almgren.table.headline.capped_sharpe}} | {{impact.almgren.table.headline.recent.capped_sharpe}} | {{impact.almgren.table.headline.capped_alpha}} ({{impact.almgren.table.headline.capped_alpha_t}}) | not meaningful |
+| Zarinelli, Corwin-Schultz | {{impact.zarinelli.cs.headline.capped_sharpe}} | {{impact.zarinelli.cs.headline.recent.capped_sharpe}} | {{impact.zarinelli.cs.headline.capped_alpha}} ({{impact.zarinelli.cs.headline.capped_alpha_t}}) | {{impact.zarinelli.cs.headline.net_sharpe}} |
+| Zarinelli, size table | {{impact.zarinelli.table.headline.capped_sharpe}} | {{impact.zarinelli.table.headline.recent.capped_sharpe}} | {{impact.zarinelli.table.headline.capped_alpha}} ({{impact.zarinelli.table.headline.capped_alpha_t}}) | {{impact.zarinelli.table.headline.net_sharpe}} |
+
+Almgren's linear term blows up on trades of many days' volume, so its uncapped figures mean nothing, which is why the rule set them aside.
+
+The top {{spec.variant}} on the size table:
+
+| Impact | ADV cap Sharpe | {{spec.recent_start}} on | Capped alpha (t) | Capacity |
+|---|---|---|---|---|
+| Coefficient {{spec.impact}} | {{impact.k1.table.top1000.capped_sharpe}} | {{impact.k1.table.top1000.recent.capped_sharpe}} | {{impact.k1.table.top1000.capped_alpha}} ({{impact.k1.table.top1000.capped_alpha_t}}) | {{impact.k1.table.top1000.capacity}} |
+| Y = {{spec.impact}} averaged | {{impact.average.table.top1000.capped_sharpe}} | {{impact.average.table.top1000.recent.capped_sharpe}} | {{impact.average.table.top1000.capped_alpha}} ({{impact.average.table.top1000.capped_alpha_t}}) | {{impact.average.table.top1000.capacity}} |
+| Almgren | {{impact.almgren.table.top1000.capped_sharpe}} | {{impact.almgren.table.top1000.recent.capped_sharpe}} | {{impact.almgren.table.top1000.capped_alpha}} ({{impact.almgren.table.top1000.capped_alpha_t}}) | {{impact.almgren.table.top1000.capacity}} |
+| Zarinelli | {{impact.zarinelli.table.top1000.capped_sharpe}} | {{impact.zarinelli.table.top1000.recent.capped_sharpe}} | {{impact.zarinelli.table.top1000.capped_alpha}} ({{impact.zarinelli.table.top1000.capped_alpha_t}}) | {{impact.zarinelli.table.top1000.capacity}} |
+
+What this supports:
+
+- **Coefficient {{spec.impact}} is too high for this kind of order.** Published estimates are several times lower. The headline figures overstate impact as well as spreads.
+- **Fixing impact alone isn't enough.** On Corwin-Schultz spreads the capped book stays negative under every law, at {{impact.almgren.cs.headline.capped_sharpe}} and {{impact.zarinelli.cs.headline.capped_sharpe}}.
+- **Fixing both gives a positive estimate that misses the bar.** The rule is {{impact.rule.headline}} for the top {{spec.universe}}: alpha is {{impact.almgren.table.headline.capped_alpha}} (t {{impact.almgren.table.headline.capped_alpha_t}}) and {{impact.zarinelli.table.headline.capped_alpha}} (t {{impact.zarinelli.table.headline.capped_alpha_t}}). It's also {{impact.rule.top1000}} for the top {{spec.variant}}, where one law clears t = {{spec.hurdle}} and the other, at t {{impact.almgren.table.top1000.capped_alpha_t}}, doesn't.
+- **So a net edge is not established,** and neither is its absence. The honest position is that the D-06 costs were too high to judge this book, and the corrected costs leave the answer open.
+- **Capacity moves a lot on these assumptions.** On the size table the top {{spec.variant}} goes from {{impact.k1.table.top1000.capacity}} at coefficient {{spec.impact}} to {{impact.almgren.table.top1000.capacity}} or {{impact.zarinelli.table.top1000.capacity}}. The top {{spec.universe}} stays below the grid.
+
+Why not to lean on the positive estimates:
+
+- **It's a second look after a failure,** across {{spec.laws}} laws, {{spec.spread_pairs}} spread models and {{spec.books}} books, on data already seen.
+- **The sources describe other trades.** They measure single orders by institutions, not a book of hundreds of names all trading on one day.
+- **The book is mostly outside their range.** Before the cap, {{profile.headline.within_2}} of its traded dollars are within {{spec.few_percent}} of ADV, {{profile.headline.within_10}} within {{spec.adv_cap}}, and {{profile.headline.above_day}} above a full day's volume. Only {{profile.headline.top_1000}} is in the top {{spec.variant}} names, while Almgren's sample is large caps.
+- **The capped book isn't the book specified.** It misses trades and drifts, with net exposure up to {{spec.capped_exposure}} of NAV.
+- **The sources disagree.** Y is "of order unity" in one and {{spec.zarinelli_y_small}} to {{spec.zarinelli_y_large}} in another, partly because of units and partly not.
+- **The inputs are snapshots.** The size table holds {{spec.table_year}} and {{spec.large_cap_year}} spreads, and Zarinelli's sample is 2007 to 2009.
+
+Measured execution costs on this kind of book, or a test on data not yet seen, would settle it. More runs on this data wouldn't.
 
 ### How many tries
 
-The headline rests on {{trials.total}} logged trials: {{trials.replication}} replication, {{trials.composite}} composite, {{trials.value}} value, {{trials.momentum}} momentum, {{trials.quality}} quality, {{trials.investment}} investment, {{trials.low_risk}} low risk and {{trials.size}} size. {{trials.dirty}} were run from a dirty tree and are kept. {{trials.late_spread}} of the composite rows are the later spread-model runs, marked in `x_note`. `efp explog export` hands the log to the sibling backtest-overfitting-lab repo.
+The headline rests on {{trials.total}} logged trials: {{trials.replication}} replication, {{trials.composite}} composite, {{trials.value}} value, {{trials.momentum}} momentum, {{trials.quality}} quality, {{trials.investment}} investment, {{trials.low_risk}} low risk and {{trials.size}} size. {{trials.dirty}} were run from a dirty tree and are kept. {{trials.late_spread}} composite rows are the spread round and {{trials.late_impact}} are the impact round, both marked in `x_note`. `efp explog export` hands the log to the sibling backtest-overfitting-lab repo.
 
 ## What failed
 
 - **The headline hypothesis.** The composite doesn't pay for itself as specified, at any size tested.
 - **{{osap.failed}} replications** fall short: `sue` r {{signal.sue.osap}}, `noa` r {{signal.noa.osap}}, `accruals` r {{signal.accruals.osap}}, `fscore` r {{signal.fscore.osap}}. Each is listed with its likely cause in the table. Tuning stopped there.
-- **Capacity has almost no dollar answer.** The book fails the test at the bottom of the grid in all but one cell, and that cell is the size table on the top {{spec.variant}}, at {{spread.table.top1000.capacity_1}}.
+- **Capacity has no answer on the D-06 costs.** The book fails the test at the bottom of the grid. Only the top {{spec.variant}} on published spreads gets a figure, and it ranges from {{impact.k1.table.top1000.capacity}} to {{impact.zarinelli.table.top1000.capacity}} depending on the impact law.
 - **Our own decay test** is too short to say anything.
 - **Abdi-Ranaldo** didn't improve on Corwin-Schultz against published spreads for these stocks.
 - **Neutralized `ind_mom`** was noise for two milestones before a table moved and gave it away. It's one number per industry, so sector dummies span it. It's now left out, and the old trial rows stay in the log.
@@ -159,7 +224,7 @@ The headline rests on {{trials.total}} logged trials: {{trials.replication}} rep
 
 - **The spread estimates are poor.** Corwin-Schultz reads {{check.cs.top.bps}} bps on large caps against a published {{spec.large_cap_bps}}, and Abdi-Ranaldo is no closer. The headline keeps Corwin-Schultz because D-06 set it, so its net figures overstate spread cost.
 - **The size table is a snapshot.** It holds {{spec.table_year}} and {{spec.large_cap_year}} figures in fixed dollar bands, which understates spreads in earlier years and ignores price.
-- **Impact is unverified.** It's the largest cost in the headline book, and none of this tests the coefficient of {{spec.impact}}. A better execution model could change the net result, and that hasn't been measured.
+- **Impact is only checked against published studies,** not measured on this book. Those studies describe single institutional orders and disagree with each other. Coefficient {{spec.impact}} overstates them, and how far is uncertain.
 - **The book is deliberately naive.** Monthly rebalancing to equal weight has no turnover control. A desk would trade less.
 - **Uncapped and capped are both flawed.** Uncapped positions reach {{spec.position_adv}}x ADV. Capped books miss trades and drift, with net exposure up to {{spec.capped_exposure}} of NAV.
 - **Restatements and items.** Sharadar's `AR*` dimensions are as-reported, but it lacks gross PP&E, taxes payable, deferred taxes and preferred stock. Book equity is plain `equity`.
@@ -195,7 +260,9 @@ uv run efp rebuild --config configs/headline.yaml
 
 **What happens to Sharpe at next-day VWAP instead of the close?** Very little gross: {{timing.close.gross}} to {{timing.next_vwap_proxy.gross}}. Net of costs it goes from {{timing.close.net}} to {{timing.next_vwap_proxy.net}}.
 
-**Would a better spread model have saved it?** No. It shrinks the loss, but the headline book stays negative on published spreads, at {{spread.table.headline.net_sharpe}} uncapped and {{spread.table.headline.capped_sharpe}} capped. Impact is the larger problem.
+**Would a better spread model have saved it?** No, not by itself. It shrinks the loss, but the headline book stays negative on published spreads with coefficient {{spec.impact}}, at {{spread.table.headline.net_sharpe}} uncapped and {{spread.table.headline.capped_sharpe}} capped.
+
+**Would better impact estimates have saved it?** Not established. With published spreads and published impact laws the capped book's alpha is positive, but at t {{impact.almgren.table.headline.capped_alpha_t}} and {{impact.zarinelli.table.headline.capped_alpha_t}} it misses the bar set before those runs.
 
 **What do you do with an anomaly that fails?** Report it with a reason. Tuning a definition to raise a correlation is logged with its effect in [docs/decisions.md](docs/decisions.md).
 
