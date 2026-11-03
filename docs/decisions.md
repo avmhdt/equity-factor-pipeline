@@ -184,6 +184,7 @@ Recorded 2026-11-01. Intel Core i9-14900K (24 cores, 32 threads), 128 GB RAM (13
 | Impact round | Almgren uncapped | Not meaningful: its linear term gives -22,472% a year on trades of many days' volume | Rule 4 set uncapped figures aside before this was seen |
 | Impact round | Trials | 96 rows, marked in `x_note`. Coefficient 1.0 rows weren't repeated | 3 laws, 2 spread models, 8 books, capped and uncapped |
 | Impact round | Stop here | No third round on this data | Each look weakens what a result can mean. New data or measured execution costs would settle it |
+| Impact round | AC-W-04 again | Passed on a fresh clone of `dd1daa8` on 2026-11-03, run after the reboot: 50 of 50 stages, only `pipeline_timings` changed, and the trial log gained no rows | It took 209.3 minutes at 8 threads with the recorders on the same HDD, against 81.3 on a quieter disk. NFR-01's 2 hours holds on a quiet disk, not under that load. It ran on the same machine, so it doesn't test another OS |
 
 ## Known limits on the free path
 
